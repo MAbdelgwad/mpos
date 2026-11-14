@@ -54,7 +54,9 @@ class ApiIntegrationTest {
     }
     @Test void loginRevocationExpiryAndAuthentication() throws Exception {
         assertEquals(200,request("GET","/api/health",null,null).statusCode());
-        assertEquals(401,request("GET","/api/warehouses",null,null).statusCode());
+        var denied=request("GET","/api/warehouses",null,null);
+        assertEquals(401,denied.statusCode());
+        assertDoesNotThrow(()->java.util.UUID.fromString(denied.headers().firstValue("X-Request-ID").orElseThrow()));
         assertEquals(401,request("POST","/api/login",null,"{\"email\":\"admin@example.com\",\"password\":\"wrong\"}").statusCode());
         assertEquals(422,request("POST","/api/login",null,"{}").statusCode());
         String token=login();

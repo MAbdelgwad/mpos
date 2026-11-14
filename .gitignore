@@ -6,3 +6,4 @@ frontend/dist/
 **/.attach_pid*
 **/__pycache__/
 *.log
+/diagnostics/

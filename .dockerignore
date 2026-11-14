@@ -5,3 +5,4 @@ legacy
 frontend/dist
 **/.env
 .env
+/diagnostics/

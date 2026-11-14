@@ -1,3 +1,4 @@
+import {downloadDiagnostics} from '../shared/diagnostics/diagnostics';
 import React, {useState} from 'react';
 import {Link, useNavigate} from 'react-router-dom';
 import {useDispatch,useSelector} from 'react-redux';
@@ -18,5 +19,6 @@ export default function SpringHeader() {
         {permissions.includes('manage_inventory')&&<Link to="/app/inventory">{ar?'المخزون':'Inventory'}</Link>}
         <select aria-label="Language" className="form-select" value={ar?'ar':'en'} onChange={language}><option value="en">English</option><option value="ar">العربية</option></select>
         <button className="btn btn-outline-primary text-nowrap" onClick={()=>dispatch(logoutAction({},navigate))}>{ar?'تسجيل الخروج':'Sign out'}</button>
+        <button className="btn btn-outline-secondary text-nowrap" onClick={downloadDiagnostics}>{ar?'تقرير الأخطاء':'Diagnostics'}</button>
         {error && <span role="alert">{error}</span>}</div>;
 }

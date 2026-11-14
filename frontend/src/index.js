@@ -1,3 +1,5 @@
+import {installDiagnostics} from './shared/diagnostics/diagnostics';
+import DiagnosticBoundary from './shared/diagnostics/DiagnosticBoundary';
 import React from 'react';
 import ReactDOM from 'react-dom';
 import { HashRouter } from "react-router-dom";
@@ -10,6 +12,8 @@ import storage from 'redux-persist/lib/storage'
 import { persistReducer, persistStore } from 'redux-persist';
 import { PersistGate } from 'redux-persist/integration/react'
 import reportWebVitals from './reportWebVitals';
+
+installDiagnostics();
 
 const persistConfig = {
     key: 'root',
@@ -29,13 +33,13 @@ const store = createStore(
 let persistor = persistStore(store)
 
 ReactDOM.render(
-    <Provider store={store}>
+    <DiagnosticBoundary><Provider store={store}>
         <PersistGate persistor={persistor}>
             <HashRouter>
                 <App />
             </HashRouter>
         </PersistGate>
-    </Provider>,
+    </Provider></DiagnosticBoundary>,
     document.getElementById('root')
 );
 

@@ -1,6 +1,6 @@
-# تشغيل أو تحديث حزمة المعمارية v2
+# تشغيل أو تحديث حزمة التشخيص
 
-هذه حزمة مصدر كاملة للنسخة الحالية، وتحتوي فصل Repositories لكل الوحدات المنجزة وتحسينات DTOs. ليست استكمالًا للمبيعات وPOS.
+هذه حزمة مصدر كاملة للنسخة الحالية مع تسجيل أخطاء الباك إند والواجهة وجمع تقارير التشخيص. تتضمن إصلاح صلاحيات Nginx السابق. ليست استكمالًا للمبيعات وPOS.
 
 ## إذا كنت تستخدم حزمة mpos-architecture السابقة
 
@@ -8,7 +8,7 @@
 
 ```bash
 mkdir -p ~/Storage/mpos-testing
-unzip -o ~/Downloads/mpos-architecture-v2.zip -d ~/Storage/mpos-testing
+unzip -o ~/Downloads/mpos-diagnostics.zip -d ~/Storage/mpos-testing
 cd ~/Storage/mpos-testing/mpos-architecture
 bash scripts/start.sh
 ```
@@ -29,4 +29,4 @@ bash scripts/logs.sh
 bash scripts/stop.sh
 ```
 
-أُنجزت اختبارات Java بما فيها التزامن والتراجع عن المعاملات، لكن Docker والتجربة التفاعلية في المتصفح يحتاجان التحقق على جهازك. لم تتغير الواجهة في هذا التحديث.
+أُنجزت اختبارات Java بما فيها التزامن والتراجع عن المعاملات، لكن Docker والتجربة التفاعلية في المتصفح يحتاجان التحقق على جهازك. بعد إعادة البناء، حدّث المتصفح باستخدام Ctrl+Shift+R، ثم أعد الخطأ ونزّل التقرير من زر Diagnostics. راجع docs/diagnostics-ar.md.

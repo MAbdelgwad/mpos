@@ -1,6 +1,12 @@
 name: mpos-spring
+x-log-options: &log-options
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
 services:
   db:
+    logging: *log-options
     image: postgres:17
     environment:
       POSTGRES_DB: mpos
@@ -14,6 +20,7 @@ services:
       timeout: 5s
       retries: 20
   api:
+    logging: *log-options
     build: ./backend
     environment:
       DATABASE_URL: jdbc:postgresql://db:5432/mpos
@@ -27,6 +34,7 @@ services:
       db:
         condition: service_healthy
   web:
+    logging: *log-options
     build:
       context: .
       dockerfile: frontend/Dockerfile
