@@ -7,14 +7,16 @@ import com.sendw.mpos.shared.application.RequestDeduplicator;
 import com.sendw.mpos.shared.domain.Validation;
 import com.sendw.mpos.identity.application.Permissions;
 import java.util.*;
+import com.sendw.mpos.payments.application.PaymentBalances;
+import com.sendw.mpos.payments.domain.Settlement;
 import java.math.BigDecimal;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 @Service
 public class PurchaseService {
-    private final PurchaseRepository repository;private final StockOperations stock;private final IdentityService identity;private final RequestDeduplicator idempotency;
-    public PurchaseService(PurchaseRepository repository,StockOperations stock,IdentityService identity,RequestDeduplicator idempotency){this.repository=repository;this.stock=stock;this.identity=identity;this.idempotency=idempotency;}
+    private final PaymentBalances payments;private final PurchaseRepository repository;private final StockOperations stock;private final IdentityService identity;private final RequestDeduplicator idempotency;
+    public PurchaseService(PurchaseRepository repository,StockOperations stock,IdentityService identity,RequestDeduplicator idempotency,PaymentBalances payments){this.payments=payments;this.repository=repository;this.stock=stock;this.identity=identity;this.idempotency=idempotency;}
     public Map<String,Object> preview(Map<String,Object> body) { permit(); var lines=Requests.items(body,"purchase_items").stream().map(PurchaseMath::line).toList(); return Map.of("data",PurchaseMath.totals(body,lines)); }
     private void permit(){Permissions.require("manage_purchase");}
     private Map<String,Object> find(long id,boolean lock){return repository.find(id,lock);}
@@ -26,7 +28,7 @@ public class PurchaseService {
     private Map<String,Object> persist(Long id,Map<String,Object> body){
         if(id!=null){var old=find(id,true);int status=((Number)old.get("status")).intValue();if(status==1||status==4)throw Requests.conflict("Received/cancelled purchases are locked; cancel and create a correction");
             if(!body.containsKey("version") || Validation.integer(body.get("version").toString())!=((Number)old.get("version")).intValue())throw Requests.conflict("Purchase changed; reload before editing");}
-        for(String field:List.of("paid_amount","received_amount"))if(Requests.number(body,field,false).signum()!=0)throw Validation.invalid("Purchase payments are not implemented yet");
+        for(String field:List.of("paid_amount","received_amount"))if(Requests.number(body,field,false).signum()!=0)throw Validation.invalid("Record payments through the dedicated payments endpoint");
         long supplier=Requests.id(body,"supplier_id"),warehouse=Requests.id(body,"warehouse_id");int status=Requests.choice(body,"status",2,3);
         var date=Requests.date(body);String notes=Requests.text(body,"notes",2000,false);
         var lines=Requests.items(body,"purchase_items").stream().map(PurchaseMath::line).toList();var seen=new HashSet<Long>();
@@ -61,6 +63,7 @@ public class PurchaseService {
     }
     @Transactional
     public Map<String,Object> cancel(long id){permit();var p=find(id,true);int status=((Number)p.get("status")).intValue();if(status==4)return show(id);
+        payments.requireUnpaid("purchases",id);
         if(status==1)post(id,((Number)p.get("warehouse_id")).longValue(),"PURCHASE_CANCEL",BigDecimal.ONE.negate());
         repository.setStatus(id,4);return show(id);
     }
@@ -69,6 +72,8 @@ public class PurchaseService {
         var attrs=new LinkedHashMap<>(row);Object id=attrs.remove("id");attrs.replaceAll((k,v)->v instanceof java.sql.Timestamp t?t.toInstant().toString():v instanceof java.sql.Date d?d.toString():v);
         attrs.put("reference_code","PUR_"+id);attrs.put("supplier_name",repository.supplierName(row.get("supplier_id")));attrs.put("warehouse_name",repository.warehouseName(row.get("warehouse_id")));
         var lines=repository.lines(id);attrs.put("purchase_items",lines);
+        var balance=Settlement.of((BigDecimal)row.get("grand_total"),payments.paid("purchases",((Number)id).longValue()),((Number)row.get("status")).intValue()==4);
+        attrs.put("paid_amount",balance.paid());attrs.put("due_amount",balance.due());attrs.put("payment_status",balance.status());
         return Map.of("id",id,"type","purchases","attributes",attrs);
     }
     public Map<String,Object> list(Map<String,String> q){permit();

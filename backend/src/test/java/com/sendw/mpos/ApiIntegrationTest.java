@@ -37,7 +37,7 @@ class ApiIntegrationTest {
     static final String WAREHOUSE="""
         {"name":"المخزن الرئيسي","phone":"0501234567","country":"Saudi Arabia","city":"Riyadh","email":"","zip_code":"00123"}
         """;
-    @BeforeEach void clear() { db.update("DELETE FROM access_tokens"); db.execute("TRUNCATE sale_items,sales,stock_movements,stock_operations,stock_balances,purchase_items,purchases,request_keys,warehouses,products,units,base_units,brands,product_categories,customers,suppliers,media CASCADE"); db.update("DELETE FROM app_users WHERE email<>'admin@example.com'"); db.update("DELETE FROM roles WHERE protected_role=false"); }
+    @BeforeEach void clear() { db.update("DELETE FROM access_tokens"); db.execute("TRUNCATE document_payments,sale_items,sales,stock_movements,stock_operations,stock_balances,purchase_items,purchases,request_keys,warehouses,products,units,base_units,brands,product_categories,customers,suppliers,media CASCADE"); db.update("DELETE FROM app_users WHERE email<>'admin@example.com'"); db.update("DELETE FROM roles WHERE protected_role=false"); }
     @AfterAll static void stopDatabase() throws Exception { postgres.close(); }
 
     HttpResponse<String> request(String method,String path,String token,String body) throws Exception {
@@ -438,5 +438,92 @@ class ApiIntegrationTest {
             assertEquals(0,db.queryForObject("SELECT count(*) FROM sales_upgrade_test.sales",Integer.class));
             assertEquals(1,db.queryForObject("SELECT count(*) FROM sales_upgrade_test.role_permissions rp JOIN sales_upgrade_test.roles r ON r.id=rp.role_id JOIN sales_upgrade_test.permissions p ON p.id=rp.permission_id WHERE r.name='ADMIN' AND p.name='manage_sale'",Integer.class));
         } finally { db.execute("DROP SCHEMA sales_upgrade_test CASCADE"); }
+    }
+    String payment(String amount) { return "{\"amount\":"+amount+",\"date\":\"2026-11-14\",\"method\":\"CASH\",\"reference\":\"test reference\"}"; }
+    long payable(StockFixture f,String type) throws Exception {
+        String body=type.equals("sales")?sale(f,saleCustomer(f.token()),2,2):purchase(f,1,2);
+        var r=postKey("/api/"+type,f.token(),"payable-"+type,body);assertEquals(201,r.statusCode(),r.body());
+        long id=((Number)JsonPath.read(r.body(),"$.data.id")).longValue();
+        if(type.equals("sales")){postKey("/api/inventory/opening",f.token(),"payments-opening",opening(f,10));assertEquals(200,request("POST","/api/sales/"+id+"/complete",f.token(),"{}").statusCode());}
+        return id;
+    }
+    @Test void partialFullAndVoidedPaymentsForSalesAndPurchases() throws Exception {
+        for(String type:java.util.List.of("sales","purchases")) {
+            clear();var f=stockFixture();long id=payable(f,type);String path="/api/"+type+"/"+id, payments=path+"/payments";
+            var doc=request("GET",path,f.token(),null);var total=new java.math.BigDecimal(JsonPath.read(doc.body(),"$.data.attributes.grand_total").toString());
+            var first=postKey(payments,f.token(),"first-payment",payment("5"));assertEquals(201,first.statusCode(),first.body());
+            assertEquals("2026-11-14",JsonPath.read(first.body(),"$.data.attributes.date"));
+            long paymentId=((Number)JsonPath.read(first.body(),"$.data.id")).longValue();
+            var partial=request("GET",path,f.token(),null);assertEquals(3,((Number)JsonPath.read(partial.body(),"$.data.attributes.payment_status")).intValue());
+            assertEquals(409,request("POST",path+"/cancel",f.token(),"{}").statusCode());
+            assertEquals(201,postKey(payments,f.token(),"rest-payment",payment(total.subtract(new java.math.BigDecimal("5")).toPlainString())).statusCode());
+            var full=request("GET",path,f.token(),null);assertEquals(1,((Number)JsonPath.read(full.body(),"$.data.attributes.payment_status")).intValue());
+            assertEquals(409,postKey(payments,f.token(),"excess-payment",payment("0.0001")).statusCode());
+            for(int i=0;i<2;i++)assertEquals(200,request("POST",payments+"/"+paymentId+"/void",f.token(),"{\"reason\":\"Cash entry reversed\"}").statusCode());
+            var listing=request("GET",payments,f.token(),null);assertEquals(200,listing.statusCode(),listing.body());assertEquals(5,((Number)JsonPath.read(listing.body(),"$.summary.due")).doubleValue(),0.0001);
+            assertEquals(2,db.queryForObject("SELECT count(*) FROM document_payments",Integer.class));
+            assertEquals(1,db.queryForObject("SELECT count(*) FROM document_payments WHERE voided_at IS NOT NULL AND voided_by IS NOT NULL AND void_reason='Cash entry reversed'",Integer.class));
+            long second=db.queryForObject("SELECT id FROM document_payments WHERE voided_at IS NULL",Long.class);
+            assertEquals(200,request("POST",payments+"/"+second+"/void",f.token(),"{\"reason\":\"Refund reconciled outside app\"}").statusCode());
+            assertEquals(200,request("POST",path+"/cancel",f.token(),"{}").statusCode());
+            assertEquals(409,postKey(payments,f.token(),"cancelled-payment",payment("1")).statusCode());
+        }
+    }
+    @Test void concurrentPaymentsCannotExceedDueAndFailedClaimRollsBack() throws Exception {
+        var f=stockFixture();long id=payable(f,"sales");String path="/api/sales/"+id+"/payments";
+        var a=http.sendAsync(keyed(path,f.token(),"payment-race-a",payment("15")),HttpResponse.BodyHandlers.ofString());
+        var b=http.sendAsync(keyed(path,f.token(),"payment-race-b",payment("15")),HttpResponse.BodyHandlers.ofString());
+        assertEquals(java.util.List.of(201,409),java.util.stream.Stream.of(a.get().statusCode(),b.get().statusCode()).sorted().toList());
+        assertEquals(1,db.queryForObject("SELECT count(*) FROM document_payments",Integer.class));
+        assertEquals(1,db.queryForObject("SELECT count(*) FROM request_keys WHERE scope LIKE '%:payments:sales:%'",Integer.class));
+        assertStock(f.warehouse(),f.product(),"8");
+    }
+    @Test void duplicateConcurrentPaymentAndWrongDocumentVoid() throws Exception {
+        var f=stockFixture();long id=payable(f,"sales");String path="/api/sales/"+id+"/payments";
+        var a=http.sendAsync(keyed(path,f.token(),"payment-duplicate",payment("5")),HttpResponse.BodyHandlers.ofString());
+        var b=http.sendAsync(keyed(path,f.token(),"payment-duplicate",payment("5")),HttpResponse.BodyHandlers.ofString());
+        var ra=a.get();var rb=b.get();assertEquals(201,ra.statusCode(),ra.body());assertEquals(201,rb.statusCode(),rb.body());
+        assertEquals((Object)JsonPath.read(ra.body(),"$.data.id"),(Object)JsonPath.read(rb.body(),"$.data.id"));
+        assertEquals(409,postKey(path,f.token(),"payment-duplicate",payment("6")).statusCode());
+        long paymentId=((Number)JsonPath.read(ra.body(),"$.data.id")).longValue();
+        long purchaseId=payable(f,"purchases");
+        assertEquals(404,request("POST","/api/purchases/"+purchaseId+"/payments/"+paymentId+"/void",f.token(),"{\"reason\":\"Wrong document\"}").statusCode());
+        assertEquals(1,db.queryForObject("SELECT count(*) FROM document_payments WHERE voided_at IS NULL",Integer.class));
+    }
+    @Test void paymentValidationPermissionsAndDraftRestriction() throws Exception {
+        var f=stockFixture();var draft=postKey("/api/purchases",f.token(),"payment-draft",purchase(f,2,2));long id=((Number)JsonPath.read(draft.body(),"$.data.id")).longValue();String path="/api/purchases/"+id+"/payments";
+        assertEquals(409,postKey(path,f.token(),"draft-payment",payment("1")).statusCode());
+        assertEquals(200,request("POST","/api/purchases/"+id+"/receive",f.token(),"{}").statusCode());
+        for(String invalid:java.util.List.of(payment("0"),payment("-1"),payment("1.00001"),payment("1").replace("CASH","INVALID"),payment("1").replace("2026-11-14","invalid")))assertEquals(422,postKey(path,f.token(),"invalid-pay",invalid).statusCode());
+        assertEquals(422,request("POST",path,f.token(),payment("1")).statusCode());
+        assertEquals(0,db.queryForObject("SELECT count(*) FROM document_payments",Integer.class));
+        long permission=db.queryForObject("SELECT id FROM permissions WHERE name='manage_payments'",Long.class),role=db.queryForObject("SELECT id FROM roles WHERE name='ADMIN'",Long.class);
+        db.update("DELETE FROM role_permissions WHERE role_id=? AND permission_id=?",role,permission);
+        try {assertEquals(403,postKey(path,f.token(),"denied-payment",payment("1")).statusCode());assertEquals(403,request("GET",path,f.token(),null).statusCode());}
+        finally {db.update("INSERT INTO role_permissions(role_id,permission_id) VALUES (?,?)",role,permission);}
+        var valid=postKey(path,f.token(),"invalid-pay",payment("1"));assertEquals(201,valid.statusCode(),valid.body());
+        long paymentId=((Number)JsonPath.read(valid.body(),"$.data.id")).longValue();assertEquals(422,request("POST",path+"/"+paymentId+"/void",f.token(),"{\"reason\":\" \"}").statusCode());
+    }
+    @Test void concurrentCancellationAndPaymentNeverLeavePaidCancelledDocument() throws Exception {
+        var f=stockFixture();long id=payable(f,"sales");String path="/api/sales/"+id;
+        var pay=http.sendAsync(keyed(path+"/payments",f.token(),"pay-v-cancel",payment("5")),HttpResponse.BodyHandlers.ofString());
+        var cancel=http.sendAsync(keyed(path+"/cancel",f.token(),"cancel-v-pay","{}"),HttpResponse.BodyHandlers.ofString());
+        int p=pay.get().statusCode(),c=cancel.get().statusCode();assertTrue((p==201&&c==409)||(p==409&&c==200),p+"/"+c);
+        assertEquals(0,db.queryForObject("SELECT count(*) FROM sales s JOIN document_payments p ON p.sale_id=s.id WHERE s.status=4 AND p.voided_at IS NULL",Integer.class));
+        assertStock(f.warehouse(),f.product(),c==200?"10":"8");
+    }
+    @Test void upgradeFromV4PreservesSalesAndEnablesPayments() {
+        var flyway=org.flywaydb.core.Flyway.configure().dataSource(postgres.getPostgresDatabase()).schemas("payments_upgrade_test").defaultSchema("payments_upgrade_test").target("4").load();flyway.migrate();
+        try {
+            db.update("INSERT INTO payments_upgrade_test.warehouses(name,phone,country,city) VALUES ('Existing','123','SA','Riyadh')");
+            db.update("INSERT INTO payments_upgrade_test.app_users(email,password_hash,first_name,role) VALUES ('migration@example.com','test hash','Existing','ADMIN')");
+            db.update("INSERT INTO payments_upgrade_test.customers(name,email,phone,country,city,address) VALUES ('Existing buyer','old@example.com','123','SA','Riyadh','Address')");
+            db.update("INSERT INTO payments_upgrade_test.sales(customer_id,warehouse_id,date,status,tax_rate,tax_amount,discount,shipping,grand_total,created_by) VALUES (1,1,'2026-11-14',2,0,0,0,0,19.8,1)");
+            org.flywaydb.core.Flyway.configure().dataSource(postgres.getPostgresDatabase()).schemas("payments_upgrade_test").defaultSchema("payments_upgrade_test").load().migrate();
+            assertEquals(1,db.queryForObject("SELECT count(*) FROM payments_upgrade_test.warehouses",Integer.class));
+            assertEquals(0,new java.math.BigDecimal("19.8").compareTo(db.queryForObject("SELECT grand_total FROM payments_upgrade_test.sales WHERE id=1",java.math.BigDecimal.class)));
+            assertEquals(0,db.queryForObject("SELECT count(*) FROM payments_upgrade_test.document_payments",Integer.class));
+            assertEquals(1,db.queryForObject("SELECT count(*) FROM payments_upgrade_test.role_permissions rp JOIN payments_upgrade_test.roles r ON r.id=rp.role_id JOIN payments_upgrade_test.permissions p ON p.id=rp.permission_id WHERE r.name='ADMIN' AND p.name='manage_payments'",Integer.class));
+        } finally {db.execute("DROP SCHEMA payments_upgrade_test CASCADE");}
     }
 }

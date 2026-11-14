@@ -1,6 +1,6 @@
-# MPOS Spring migration — catalog, purchases, sales and inventory
+# MPOS Spring migration — catalog, purchases, sales, payments and inventory
 
-Java 21 / Spring Boot 4.1.2, PostgreSQL, Flyway, and the existing React 17 screens served independently of PHP. This is a **partial migration**: master data, access management, purchases, core unpaid sales and physical inventory are implemented; POS, payments, returns and inventory valuation remain pending. The Laravel source is retained for reference under `legacy/laravel`; it is not part of the new deployment.
+Java 21 / Spring Boot 4.1.2, PostgreSQL, Flyway, and the existing React 17 screens served independently of PHP. This is a **partial migration**: master data, access management, purchases, core sales, recorded customer/supplier payments and physical inventory are implemented; POS, returns and inventory valuation remain pending. The Laravel source is retained for reference under `legacy/laravel`; it is not part of the new deployment.
 
 ## Start the new application
 
@@ -15,7 +15,7 @@ docker compose logs -f api
 
 Open **http://localhost:18181** and sign in using `MPOS_ADMIN_EMAIL` and `MPOS_ADMIN_PASSWORD`. Port 18180 exposes the API on loopback; PostgreSQL is internal to Compose. Data and images persist in PostgreSQL's named volume. Do not run `docker compose down -v` unless you intend to erase that database.
 
-The bootstrap administrator is inserted only if its email does not exist. Changing bootstrap environment variables does not reset an existing account's password. Existing foundation/catalog databases are upgraded through V4; V1–V3 are unchanged. This deployment does not import MySQL data.
+The bootstrap administrator is inserted only if its email does not exist. Changing bootstrap environment variables does not reset an existing account's password. Existing foundation/catalog databases are upgraded through V5; V1–V4 are unchanged. This deployment does not import MySQL data.
 
 ## Available functionality
 
@@ -30,14 +30,15 @@ The bootstrap administrator is inserted only if its email does not exist. Changi
 - Existing React master-data pages plus Spring purchase, sale and inventory screens. Purchases support pending/ordered drafts, receive, view and audited cancellation. Posted documents are locked; draft updates use version checks.
 - Opening balances, signed adjustments, atomic two-warehouse transfers, live balances and an append-only movement API. Sorted row locking prevents concurrent overdraw. Creating a purchase or manual movement requires an Idempotency-Key; the UI reuses it on retries.
 - Server-side line/invoice discounts, inclusive/exclusive taxes and four-decimal HALF_UP rounding. Only received purchases increase stock. Quantities use the source model's 1:1 units; no carton-to-piece conversion factors are implemented.
-- Unsupported POS/payment/report/import/export controls remain hidden in the Spring deployment. See `../docs/inventory-purchases-ar.md` for workflows, API fields and manual acceptance steps.
+- Unsupported POS/report/import/export controls remain hidden in the Spring deployment. See `../docs/inventory-purchases-ar.md` for workflows, API fields and manual acceptance steps.
 
-Sales support pending/ordered drafts, optimistic draft editing, completion and audited cancellation. Only completion deducts stock; cancellation restores it once. POST creation requires an Idempotency-Key. Totals are calculated on the server; customer payments, POS and returns are not implemented. See `../docs/sales-ar.md`.
+Sales support pending/ordered drafts, optimistic draft editing, completion and audited cancellation. Only completion deducts stock; cancellation restores it once. POST creation requires an Idempotency-Key. Totals are calculated on the server; recorded payments are available separately, while POS and returns are not implemented. See `../docs/sales-ar.md`.
 
 ## API map
 
 | Resource | Methods |
 | --- | --- |
+| `/api/{sales or purchases}/{id}/payments` | GET, POST with Idempotency-Key; `/{payment}/void` POST with reason |
 | `/api/sales` | GET, POST; `/{id}` GET/PUT; `/preview`, `/{id}/complete`, `/{id}/cancel` POST |
 | `/api/login`, `/api/logout` | POST; login accepts JSON or form data |
 | `/api/validate-auth-token` | POST |
@@ -81,10 +82,16 @@ mvn -Dmpos.browser=true verify
 
 ## Remaining migration work
 
-Supplier payments and inventory valuation; customer payments/returns; POS registers/holds/coupons; quotations/expenses; reports/PDF/Excel/import; mail/SMS/password-recovery flows; full user profile editing and production login rate limiting. Product stock values now reflect warehouse balances. Opening-stock parameters in the old product form remain rejected; use the dedicated inventory opening-balance screen. Do not use this version for live sales.
+Inventory valuation; returns; POS registers/holds/coupons; quotations/expenses; reports/PDF/Excel/import; mail/SMS/password-recovery flows; full user profile editing and production login rate limiting. Product stock values now reflect warehouse balances. Opening-stock parameters in the old product form remain rejected; use the dedicated inventory opening-balance screen. Do not use this version for live sales.
 
 The frontend retains the repository's existing dependencies. The build reports existing CSS deprecation warnings; dependency modernization is a separate task. PostgreSQL tests and browser smoke do not substitute for financial parity tests or production deployment validation.
 
 ## Repository boundaries
 
-All application modules now depend on dedicated repository ports; SQL and JdbcTemplate remain in infrastructure adapters. ArchitectureTest enforces this across the whole backend. Login, password changes, language changes, warehouses and image content use explicit records. Remaining legacy Map contracts are documented in ../docs/architecture-ar.md. This iteration passed 41 tests with one optional browser test skipped (42 total), including sales concurrency, rollback and V3-to-V4 upgrade. V4 adds sales without changing released migrations.
+All application modules now depend on dedicated repository ports; SQL and JdbcTemplate remain in infrastructure adapters. ArchitectureTest enforces this across the whole backend. Login, password changes, language changes, warehouses and image content use explicit records. Remaining legacy Map contracts are documented in ../docs/architecture-ar.md. This iteration passed 47 tests with one optional browser test skipped (48 total), including payment lifecycle, concurrency, idempotency, cancellation races, validation and permissions, and V4-to-V5 upgrade preserving an existing sale. React production build passed with two existing CSS warnings. V5 adds payments without changing V1–V4.
+
+## Recorded payments (V5)
+
+Open a completed sale or received purchase to record partial or full payments and view the remaining amount. Requires manage_payments and the document permission. Payment posting and voiding share the parent document lock with cancellation; concurrent payments cannot overpay. Documents with active payments cannot be cancelled. Void a payment with a reason to correct its record; no rows are deleted. Creation is idempotent; repeated voiding preserves the original audit actor/time/reason. Transactional failure rolls back both payment and request key.
+
+Cash, bank and card are descriptive methods only: the application does not move funds or call a payment gateway. No advance payments, cross-invoice allocation, customer wallet, payment receipt PDF, exchange conversion, automatic refunds, bank reconciliation or general ledger are included. See ../docs/payments-ar.md. Totals on documents are calculated from non-voided payment rows; clients cannot assign paid_amount directly.

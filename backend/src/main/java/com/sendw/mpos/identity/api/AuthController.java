@@ -25,5 +25,5 @@ public class AuthController {
         identity.logout(authorization.substring(7)); return Map.of("success",true,"message","Logout Successfully");
     }
     @GetMapping("/health")
-    public Map<String,String> health() { return Map.of("status","UP","stage","sales-purchases-and-inventory"); }
+    public Map<String,String> health() { return Map.of("status","UP","stage","sales-purchases-payments-and-inventory"); }
 }
