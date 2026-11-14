@@ -35,7 +35,7 @@ try:
     login = json.loads(request('/api/login', {'email': values['MPOS_ADMIN_EMAIL'], 'password': values['MPOS_ADMIN_PASSWORD']}))
     token = login['data']['token']
     try:
-        for endpoint in ['/api/config', '/api/products', '/api/warehouses', '/api/purchases', '/api/inventory/balances', '/api/inventory/movements']:
+        for endpoint in ['/api/config', '/api/products', '/api/warehouses', '/api/purchases', '/api/sales', '/api/inventory/balances', '/api/inventory/movements']:
             json.loads(request(endpoint, token=token))
             print('PASS ' + endpoint)
     finally:

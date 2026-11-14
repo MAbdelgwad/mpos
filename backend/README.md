@@ -1,6 +1,6 @@
-# MPOS Spring migration — catalog, purchases and inventory
+# MPOS Spring migration — catalog, purchases, sales and inventory
 
-Java 21 / Spring Boot 4.1.2, PostgreSQL, Flyway, and the existing React 17 screens served independently of PHP. This is a **partial migration**: master data, access management, purchases and physical inventory are implemented; sales, payments, returns and inventory valuation remain pending. The Laravel source is retained for reference under `legacy/laravel`; it is not part of the new deployment.
+Java 21 / Spring Boot 4.1.2, PostgreSQL, Flyway, and the existing React 17 screens served independently of PHP. This is a **partial migration**: master data, access management, purchases, core unpaid sales and physical inventory are implemented; POS, payments, returns and inventory valuation remain pending. The Laravel source is retained for reference under `legacy/laravel`; it is not part of the new deployment.
 
 ## Start the new application
 
@@ -15,7 +15,7 @@ docker compose logs -f api
 
 Open **http://localhost:18181** and sign in using `MPOS_ADMIN_EMAIL` and `MPOS_ADMIN_PASSWORD`. Port 18180 exposes the API on loopback; PostgreSQL is internal to Compose. Data and images persist in PostgreSQL's named volume. Do not run `docker compose down -v` unless you intend to erase that database.
 
-The bootstrap administrator is inserted only if its email does not exist. Changing bootstrap environment variables does not reset an existing account's password. Existing foundation/catalog databases are upgraded through V3; V1 and V2 are unchanged. This deployment does not import MySQL data.
+The bootstrap administrator is inserted only if its email does not exist. Changing bootstrap environment variables does not reset an existing account's password. Existing foundation/catalog databases are upgraded through V4; V1–V3 are unchanged. This deployment does not import MySQL data.
 
 ## Available functionality
 
@@ -27,15 +27,18 @@ The bootstrap administrator is inserted only if its email does not exist. Changi
 - PNG/JPEG uploads for products, brands, categories and users. Maximum 2 MB/image, 20 megapixels, five images/product. Bytes are stored in PostgreSQL. Images have public UUID URLs for compatibility with HTML image elements; images must not contain private documents.
 - Company name, currency display symbol, footer, date format and default language settings. Arabic/English switching and RTL through the existing translations.
 - Search, sorting and legacy `data.attributes`/`meta.total` responses. `page[size]=0` returns all records for dropdowns.
-- Existing React master-data pages plus Spring purchase and inventory screens. Purchases support pending/ordered drafts, receive, view and audited cancellation. Posted documents are locked; draft updates use version checks.
+- Existing React master-data pages plus Spring purchase, sale and inventory screens. Purchases support pending/ordered drafts, receive, view and audited cancellation. Posted documents are locked; draft updates use version checks.
 - Opening balances, signed adjustments, atomic two-warehouse transfers, live balances and an append-only movement API. Sorted row locking prevents concurrent overdraw. Creating a purchase or manual movement requires an Idempotency-Key; the UI reuses it on retries.
 - Server-side line/invoice discounts, inclusive/exclusive taxes and four-decimal HALF_UP rounding. Only received purchases increase stock. Quantities use the source model's 1:1 units; no carton-to-piece conversion factors are implemented.
-- Unsupported sales/report/import/export controls remain hidden in the Spring deployment. See `../docs/inventory-purchases-ar.md` for workflows, API fields and manual acceptance steps.
+- Unsupported POS/payment/report/import/export controls remain hidden in the Spring deployment. See `../docs/inventory-purchases-ar.md` for workflows, API fields and manual acceptance steps.
+
+Sales support pending/ordered drafts, optimistic draft editing, completion and audited cancellation. Only completion deducts stock; cancellation restores it once. POST creation requires an Idempotency-Key. Totals are calculated on the server; customer payments, POS and returns are not implemented. See `../docs/sales-ar.md`.
 
 ## API map
 
 | Resource | Methods |
 | --- | --- |
+| `/api/sales` | GET, POST; `/{id}` GET/PUT; `/preview`, `/{id}/complete`, `/{id}/cancel` POST |
 | `/api/login`, `/api/logout` | POST; login accepts JSON or form data |
 | `/api/validate-auth-token` | POST |
 | `/api/config`, `/api/permissions`, `/api/catalog-summary` | GET |
@@ -51,7 +54,7 @@ The bootstrap administrator is inserted only if its email does not exist. Changi
 
 Except public GETs and login, send `Authorization: Bearer <token>`. User updates require first_name, email, role_id and optional last_name/phone/enabled. New passwords require confirm_password and at least 12 characters / at most 72 UTF-8 bytes. Updates use full field replacement rather than JSON Merge Patch. Resource deletion is blocked when referenced. Role listing currently returns all roles; users list supports paging/search but uses stable ID ordering.
 
-Roles with product-management permission also need the relevant brand/category/unit permissions to use the product form's dropdowns. Purchase/inventory screens additionally require the relevant products, warehouses and suppliers permissions for their selectors. User and role administration permissions intentionally allow managing access; only assign them to trusted administrators.
+Roles with product-management permission also need the relevant brand/category/unit permissions to use the product form's dropdowns. Sale/purchase/inventory screens additionally require the relevant products, warehouses and customers/suppliers permissions for their selectors. User and role administration permissions intentionally allow managing access; only assign them to trusted administrators.
 
 ## Build and verify
 
@@ -78,10 +81,10 @@ mvn -Dmpos.browser=true verify
 
 ## Remaining migration work
 
-Supplier payments and inventory valuation; sales/payments/returns; POS registers/holds/coupons; quotations/expenses; reports/PDF/Excel/import; mail/SMS/password-recovery flows; full user profile editing and production login rate limiting. Product stock values now reflect warehouse balances. Opening-stock parameters in the old product form remain rejected; use the dedicated inventory opening-balance screen. Do not use this version for live sales.
+Supplier payments and inventory valuation; customer payments/returns; POS registers/holds/coupons; quotations/expenses; reports/PDF/Excel/import; mail/SMS/password-recovery flows; full user profile editing and production login rate limiting. Product stock values now reflect warehouse balances. Opening-stock parameters in the old product form remain rejected; use the dedicated inventory opening-balance screen. Do not use this version for live sales.
 
 The frontend retains the repository's existing dependencies. The build reports existing CSS deprecation warnings; dependency modernization is a separate task. PostgreSQL tests and browser smoke do not substitute for financial parity tests or production deployment validation.
 
 ## Repository boundaries
 
-All application modules now depend on dedicated repository ports; SQL and JdbcTemplate remain in infrastructure adapters. ArchitectureTest enforces this across the whole backend. Login, password changes, language changes, warehouses and image content use explicit records. Remaining legacy Map contracts are documented in ../docs/architecture-ar.md. This iteration passed 31 tests with one optional browser test skipped; frontend sources and Flyway migrations were unchanged.
+All application modules now depend on dedicated repository ports; SQL and JdbcTemplate remain in infrastructure adapters. ArchitectureTest enforces this across the whole backend. Login, password changes, language changes, warehouses and image content use explicit records. Remaining legacy Map contracts are documented in ../docs/architecture-ar.md. This iteration passed 41 tests with one optional browser test skipped (42 total), including sales concurrency, rollback and V3-to-V4 upgrade. V4 adds sales without changing released migrations.

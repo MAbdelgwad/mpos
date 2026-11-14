@@ -15,6 +15,7 @@ export default function SpringHeader() {
         catch(e){setError(e.response.data.message);}
     }
     return <div className="d-flex align-items-center gap-3"><Link to="/app/dashboard">MPOS</Link>
+        {permissions.includes('manage_sale')&&<Link to="/app/sales">{ar?'المبيعات':'Sales'}</Link>}
         {permissions.includes('manage_purchase')&&<Link to="/app/purchases">{ar?'المشتريات':'Purchases'}</Link>}
         {permissions.includes('manage_inventory')&&<Link to="/app/inventory">{ar?'المخزون':'Inventory'}</Link>}
         <select aria-label="Language" className="form-select" value={ar?'ar':'en'} onChange={language}><option value="en">English</option><option value="ar">العربية</option></select>

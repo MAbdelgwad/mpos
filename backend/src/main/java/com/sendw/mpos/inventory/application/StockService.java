@@ -12,10 +12,19 @@ public class StockService implements StockOperations {
     private record Key(long warehouse,long product) implements Comparable<Key>{public int compareTo(Key other){int n=Long.compare(warehouse,other.warehouse);return n==0?Long.compare(product,other.product):n;}}
     private final StockRepository repository;private final IdentityService identity;
     public StockService(StockRepository repository,IdentityService identity){this.repository=repository;this.identity=identity;}
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public UUID applySale(String kind,long sale,String reason,List<Delta> deltas) {
+        if(!Set.of("SALE","SALE_CANCEL").contains(kind))throw Validation.invalid("Invalid sale stock operation");
+        return post(kind,null,sale,reason,deltas);
+    }
     // All callers hold a database transaction. Lock keys in stable order for transfers and multi-line receipts.
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
     public UUID apply(String kind,Long purchase,String reason,List<Delta> deltas){
+        return post(kind,purchase,null,reason,deltas);
+    }
+    private UUID post(String kind,Long purchase,Long sale,String reason,List<Delta> deltas){
         var totals=new TreeMap<Key,BigDecimal>();for(var d:deltas)totals.merge(new Key(d.warehouse(),d.product()),d.quantity(),BigDecimal::add);
         var balances=new TreeMap<Key,BigDecimal>();
         for(var key:totals.keySet()){
@@ -24,7 +33,7 @@ public class StockService implements StockOperations {
             BigDecimal next=StockPolicy.nextBalance(quantity,totals.get(key),key.warehouse(),key.product());
             balances.put(key,next);
         }
-        UUID operation=UUID.randomUUID();repository.createOperation(operation,kind,purchase,reason,identity.current().id());
+        UUID operation=UUID.randomUUID();repository.createOperation(operation,kind,purchase,sale,reason,identity.current().id());
         for(var entry:totals.entrySet()){
             if(entry.getValue().signum()==0)throw Validation.invalid("Zero stock movement");var key=entry.getKey();
             repository.recordMovement(operation,key.warehouse(),key.product(),entry.getValue(),balances.get(key));

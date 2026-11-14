@@ -20,8 +20,8 @@ public class JdbcStockRepository implements StockRepository {
         return db.queryForObject("SELECT count(*) FROM stock_movements WHERE warehouse_id=? AND product_id=?", Long.class, warehouse, product) > 0;
     }
 
-    @Override public void createOperation(UUID id, String kind, Long purchase, String reason, long actor) {
-        db.update("INSERT INTO stock_operations(id,kind,purchase_id,reason,created_by) VALUES (?,?,?,?,?)", id, kind, purchase, reason, actor);
+    @Override public void createOperation(UUID id, String kind, Long purchase, Long sale, String reason, long actor) {
+        db.update("INSERT INTO stock_operations(id,kind,purchase_id,sale_id,reason,created_by) VALUES (?,?,?,?,?,?)", id, kind, purchase, sale, reason, actor);
     }
 
     @Override public void recordMovement(UUID operation, long warehouse, long product, BigDecimal delta, BigDecimal balance) {

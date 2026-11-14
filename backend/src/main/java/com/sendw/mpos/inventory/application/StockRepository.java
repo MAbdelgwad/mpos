@@ -7,6 +7,6 @@ import java.util.UUID;
 public interface StockRepository {
     BigDecimal lockBalance(long warehouse, long product);
     boolean hasMovements(long warehouse, long product);
-    void createOperation(UUID id, String kind, Long purchase, String reason, long actor);
+    void createOperation(UUID id, String kind, Long purchase, Long sale, String reason, long actor);
     void recordMovement(UUID operation, long warehouse, long product, BigDecimal delta, BigDecimal balance);
 }

@@ -1,3 +1,4 @@
+import SpringSales from './features/sales/SalesPage';
 import SpringPurchases from './features/purchasing/PurchasesPage';
 import SpringInventory from './features/inventory/InventoryPage';
 import SpringSettings from './features/settings/SettingsPage';
@@ -305,7 +306,7 @@ export const route = [
     },
     {
         path: "sales",
-        ele: <Sales />,
+        ele: window.MPOS_SPRING ? <SpringSales /> : <Sales />,
         permission: Permissions.MANAGE_SALE,
     },
     {
