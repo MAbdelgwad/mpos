@@ -1,58 +1,81 @@
-# MPOS Spring migration — first increment
+# MPOS Spring migration — catalog and access
 
-This is an **incomplete migration**, not a replacement for the Laravel application yet. It adds a separately runnable Java 21 / Spring Boot API with PostgreSQL, Flyway, Docker Compose, opaque bearer authentication and warehouse CRUD. The existing React source remains unchanged and is not switched to this API yet. No production data is imported.
+Java 21 / Spring Boot 4.1.2, PostgreSQL, Flyway, and the existing React 17 screens served independently of PHP. This is a **partial migration**: master data and access management are implemented; financial/inventory workflows are not yet available. The Laravel entry point remains available in the repository.
 
-## Run locally with Docker
+## Start the new application
 
-From this directory:
+From `spring-backend`:
 
 ```bash
 cp .env.example .env
-# Edit .env: set unique database and administrator passwords before starting.
+# Edit .env and set unique database and administrator passwords (12+ characters).
 docker compose up --build -d
 docker compose logs -f api
-curl http://localhost:8080/api/health
 ```
 
-The API binds to loopback port 8080. PostgreSQL is internal to the Compose network and persists in a named volume. The administrator is inserted on first startup if the configured email does not exist. Changing the bootstrap password afterward does not reset an existing user's password. There is no public registration endpoint. Remove bootstrap credentials from the runtime configuration once an operational user-management flow exists.
+Open **http://localhost:8081** and sign in using `MPOS_ADMIN_EMAIL` and `MPOS_ADMIN_PASSWORD`. Port 8080 exposes the API on loopback; PostgreSQL is internal to Compose. Data and images persist in PostgreSQL's named volume. Do not run `docker compose down -v` unless you intend to erase that database.
 
-## Implemented HTTP contract
+The bootstrap administrator is inserted only if its email does not exist. Changing bootstrap environment variables does not reset an existing account's password. Existing foundation databases are upgraded through V2; V1 is unchanged. This deployment does not import MySQL data.
 
-| Method | Path | Result |
-| --- | --- | --- |
-| GET | `/api/health` | Liveness only; not a database readiness check |
-| POST | `/api/login` | `{email,password}` → `data.token`, `data.user`, `data.permissions` |
-| POST | `/api/logout` | Revokes the current bearer token |
-| GET | `/api/warehouses` | `data[]`, `meta.total`, pagination metadata |
-| GET | `/api/warehouses/{id}` | `data.id`, `data.type`, `data.attributes` |
-| POST | `/api/warehouses` | Creates a warehouse; 201 |
-| PUT/PATCH/POST | `/api/warehouses/{id}` | Replaces warehouse fields; JSON payload required |
-| DELETE | `/api/warehouses/{id}` | Deletes a warehouse |
+## Available functionality
 
-Authenticated endpoints require `Authorization: Bearer <token>`. Warehouse access requires ADMIN. VIEWER is a testable authorization boundary, not a replacement for the legacy configurable roles system. Tokens expire after two hours and only SHA-256 hashes are stored. Passwords use BCrypt.
+- Login/logout with two-hour revocable opaque bearer tokens; BCrypt password hashes and SHA-256 token hashes.
+- Users, enabled/disabled state, role assignment, and custom roles with explicit permissions. Permission changes apply on the next request. Built-in ADMIN/VIEWER roles are protected; administrators cannot be disabled, demoted, or deleted through this API.
+- Warehouse, brand, product category, base-unit, unit, customer, supplier, and product create/read/update/delete.
+- Product costs/prices with four decimal places, tax validation, barcode format validation, and generated PNG barcodes. No financial posting is performed.
+- Sale/purchase unit foreign keys enforce the selected product base unit, including under concurrent writes.
+- PNG/JPEG uploads for products, brands, categories and users. Maximum 2 MB/image, 20 megapixels, five images/product. Bytes are stored in PostgreSQL. Images have public UUID URLs for compatibility with HTML image elements; images must not contain private documents.
+- Company name, currency display symbol, footer, date format and default language settings. Arabic/English switching and RTL through the existing translations.
+- Search, sorting and legacy `data.attributes`/`meta.total` responses. `page[size]=0` returns all records for dropdowns.
+- Existing React master-data pages plus a new master-data landing page. Unsupported transaction/report/import/export controls are hidden in the Spring deployment.
 
-List queries preserve `page[number]`, `page[size]`, `filter[search]`, and `sort` from the existing React code. Size zero returns all warehouses for dropdowns. Sorting is restricted to explicit columns. Search is case-insensitive and treats `%` and `_` literally. Update is full replacement, including the legacy POST alias. Optional blank email/zip fields become null. Names and emails are unique; duplicate entries return 409. Validation returns 422. Missing records return 404.
+## API map
 
-Example login (substitute your local credentials):
+| Resource | Methods |
+| --- | --- |
+| `/api/login`, `/api/logout` | POST; login accepts JSON or form data |
+| `/api/validate-auth-token` | POST |
+| `/api/config`, `/api/permissions`, `/api/catalog-summary` | GET |
+| `/api/front-setting`, `/api/health` | Public GET |
+| `/api/warehouses` | GET, POST; `/{id}` GET/PUT/PATCH/POST/DELETE |
+| `/api/brands`, `/api/product-categories`, `/api/base-units`, `/api/units`, `/api/customers`, `/api/suppliers`, `/api/products` | GET, POST; `/{id}` GET/PUT/PATCH/POST/DELETE |
+| `/api/users`, `/api/roles` | GET, POST; `/{id}` GET/PUT/PATCH/POST/DELETE |
+| `/api/ui-settings` | GET, PUT |
+| `/api/change-language` | POST JSON `{language:"ar"}` or `"en"` |
+| `/api/change-password` | PATCH JSON: current_password, password, password_confirmation; revokes all sessions |
+| `/api/media/{uuid}` | Public GET |
+| `/api/products-image-delete/{uuid}` | DELETE with product permission |
+
+Except public GETs and login, send `Authorization: Bearer <token>`. User updates require first_name, email, role_id and optional last_name/phone/enabled. New passwords require confirm_password and at least 12 characters / at most 72 UTF-8 bytes. Updates use full field replacement rather than JSON Merge Patch. Resource deletion is blocked when referenced. Role listing currently returns all roles; users list supports paging/search but uses stable ID ordering.
+
+Roles with product-management permission also need the relevant brand/category/unit permissions to use the product form's dropdowns. User and role administration permissions intentionally allow managing access; only assign them to trusted administrators.
+
+## Build and verify
 
 ```bash
-curl -X POST http://localhost:8080/api/login \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"admin@example.com","password":"YOUR_LOCAL_PASSWORD"}'
+# Java 21 JDK and Maven 3.9+
+cd spring-backend
+mvn verify
+# From repository root, preserve the existing locked React dependency versions:
+npm ci --legacy-peer-deps --no-audit --no-fund
+npx mix --mix-config=webpack.spring.mix.js --production
 ```
 
-Warehouse JSON:
+Integration tests use isolated real PostgreSQL 14.22 via Zonky; run as a non-root user. Docker is not needed for these tests. Compose targets PostgreSQL 17 and still needs its own deployment check. Browser smoke is opt-in:
 
-```json
-{"name":"المخزن الرئيسي","phone":"0501234567","country":"Saudi Arabia","city":"Riyadh","email":"","zip_code":"00123"}
+```bash
+# From repository root, after building React:
+npm install --prefix spring-frontend/tests
+cd spring-frontend/tests
+npx playwright install chromium
+cd ../../spring-backend
+mvn -Dmpos.browser=true verify
 ```
 
-## Verify
+`MPOS_CHROMIUM` can select an installed Chromium binary. The browser test is designed to use a temporary same-origin HTTP proxy and the actual React bundle/API/database. It has NOT completed in the authoring environment: Chromium failed to launch because Unix sockets are disallowed. Run it locally before relying on end-to-end behavior. It does not test Nginx or Docker itself.
 
-With Java 21 and Maven 3.9+, run `mvn verify`. Integration tests start an isolated real PostgreSQL database using Zonky Embedded Postgres; Docker and a separate database installation are not required. Tests must run as a non-root user with native PostgreSQL runtime prerequisites (Linux: libc, libstdc++, libgcc, zlib). First run needs Maven Central access. PostgreSQL test binaries are dependency-managed and may differ from the Compose PostgreSQL 17 image; validate the Compose image separately before release.
+## Remaining migration work
 
-The image build packages the application but does not execute integration tests. Run `mvn verify` before building a release image.
+Purchases and opening balances; inventory ledger/adjustments/transfers; sales/payments/returns; POS registers/holds/coupons; quotations/expenses; reports/PDF/Excel/import; mail/SMS/password-recovery flows; full user profile editing and production login rate limiting. Product stock values remain zero while the new database has no inventory workflows. Opening-stock parameters are rejected, not silently discarded. Do not use this version for live sales.
 
-## Not implemented yet
-
-React standalone hosting and startup/settings contracts; configurable users/roles/permissions; password reset and login rate limiting; product catalog and uploads; stock, purchases, sales, returns, payments, POS registers, holds, quotations, coupons; reports, PDF/Excel exports, mail/SMS and localization/settings. See `../docs/spring-migration-ar.md` for the conversion map. Do not point the complete React application at this API yet: its login flow immediately requests permissions, settings, and dashboard APIs that have not been migrated.
+The frontend retains the repository's existing dependencies. The build reports existing CSS deprecation warnings; dependency modernization is a separate task. PostgreSQL tests and browser smoke do not substitute for financial parity tests or production deployment validation.

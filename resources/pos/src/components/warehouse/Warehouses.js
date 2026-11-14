@@ -105,7 +105,7 @@ const Warehouses = ( props ) => {
             ignoreRowClick: true,
             allowOverflow: true,
             button: true,
-            cell: row => <ActionButton isViewIcon={true} item={row} goToDetailScreen={goToProductDetailPage}
+            cell: row => <ActionButton isViewIcon={!window.MPOS_SPRING} item={row} goToDetailScreen={goToProductDetailPage}
                 goToEditProduct={goToEditProduct} isEditMode={true}
                 onClickDeleteModel={onClickDeleteModel} />
         }

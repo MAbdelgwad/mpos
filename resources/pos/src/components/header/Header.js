@@ -1,3 +1,4 @@
+import SpringHeader from '../spring/SpringHeader';
 import React, { useEffect, useState } from 'react';
 import { Image, Nav, Navbar } from 'react-bootstrap-v5';
 import { connect, useSelector } from 'react-redux';
@@ -346,4 +347,4 @@ const mapStateToProps = (state) => {
     return { selectedLanguage, productQuantityReport }
 };
 
-export default connect(mapStateToProps, { logoutAction, updateLanguage, productQuantityReportAction })(Header);
+export default connect(mapStateToProps, { logoutAction, updateLanguage, productQuantityReportAction })(window.MPOS_SPRING ? SpringHeader : Header);

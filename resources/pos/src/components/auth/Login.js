@@ -158,14 +158,14 @@ const Login = () => {
                                             :
                                             <span className="required" />
                                         </label>
-                                        <Link
+                                        {!window.MPOS_SPRING && <Link
                                             to="/forgot-password"
                                             className="link-info fs-6 text-decoration-none"
                                         >
                                             {getFormattedMessage(
                                                 "login-form.forgot-password.label"
                                             )}
-                                        </Link>
+                                        </Link>}
                                     </div>
                                 </div>
                                 <input

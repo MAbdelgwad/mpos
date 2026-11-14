@@ -202,7 +202,7 @@ const ReactDataTable = (props) => {
                         />
                     ) : null}
                     {AddButton}
-                    {isPdf ? (
+                    {isPdf && !window.MPOS_SPRING ? (
                         <div className="text-end mb-2 ">
                             <Button
                                 type="button"
@@ -216,7 +216,7 @@ const ReactDataTable = (props) => {
                     ) : (
                         ""
                     )}
-                    {isReportPdf ? (
+                    {isReportPdf && !window.MPOS_SPRING ? (
                         <div className="text-end mb-2 ">
                             <Button
                                 type="button"
@@ -230,7 +230,7 @@ const ReactDataTable = (props) => {
                     ) : (
                         ""
                     )}
-                    {isEXCEL ? (
+                    {isEXCEL && !window.MPOS_SPRING ? (
                         <div className="text-end mb-2 ">
                             <Button
                                 type="button"
@@ -245,7 +245,7 @@ const ReactDataTable = (props) => {
                     ) : (
                         ""
                     )}
-                    {isExport ? (
+                    {isExport && !window.MPOS_SPRING ? (
                         <div className="text-end mb-2 ">
                             <Button
                                 type="button"
@@ -266,7 +266,7 @@ const ReactDataTable = (props) => {
                             selectDate={selectDate}
                         />
                     ) : null}
-                    {buttonImport ? (
+                    {buttonImport && !window.MPOS_SPRING ? (
                         <div className="text-end mb-2  order-2">
                             <Button
                                 variant="primary"

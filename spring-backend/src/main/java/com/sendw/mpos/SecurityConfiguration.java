@@ -25,9 +25,9 @@ public class SecurityConfiguration {
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .requestCache(c -> c.disable())
             .authorizeHttpRequests(a -> a
-                .requestMatchers(HttpMethod.GET, "/api/health").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/health", "/api/front-setting", "/api/media/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/login").permitAll()
-                .requestMatchers("/api/warehouses", "/api/warehouses/**").hasRole("ADMIN")
+                .requestMatchers("/api/warehouses", "/api/warehouses/**").hasAuthority("manage_warehouses")
                 .anyRequest().authenticated())
             .exceptionHandling(e -> e
                 .authenticationEntryPoint((req,res,ex) -> error(res,401,"Unauthenticated"))
@@ -39,8 +39,9 @@ public class SecurityConfiguration {
                     String header = request.getHeader("Authorization");
                     if (header != null && header.startsWith("Bearer ") && header.length() <= 256) {
                         identity.authenticate(header.substring(7)).ifPresent(user -> {
-                            var auth = new UsernamePasswordAuthenticationToken(user, null,
-                                    List.of(new SimpleGrantedAuthority("ROLE_" + user.role())));
+                            var authorities = new java.util.ArrayList<>(identity.permissions(user.role()).stream().map(SimpleGrantedAuthority::new).toList());
+                            authorities.add(new SimpleGrantedAuthority("ROLE_"+user.role()));
+                            var auth = new UsernamePasswordAuthenticationToken(user, null, authorities);
                             SecurityContextHolder.getContext().setAuthentication(auth);
                         });
                     }

@@ -20,6 +20,8 @@ public class ApiErrors {
         return ResponseEntity.unprocessableEntity().body(Map.of("message", "Validation failed", "errors",
                 e.getBindingResult().getFieldErrors().stream().map(x -> Map.of("field",x.getField(),"message",x.getDefaultMessage())).toList()));
     }
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    ResponseEntity<?> tooLarge() {return ResponseEntity.status(413).body(Map.of("message","Images must be at most 2 MB each and 12 MB per request"));}
     @ExceptionHandler(DataIntegrityViolationException.class)
     ResponseEntity<?> conflict() { return ResponseEntity.status(409).body(Map.of("message","Duplicate value or related records prevent this operation")); }
     @ExceptionHandler({HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class})

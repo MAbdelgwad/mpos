@@ -1,3 +1,5 @@
+import SpringSettings from './components/spring/SpringSettings';
+import SpringHome from './components/spring/SpringHome';
 import Dashboard from "./components/dashboard/Dashboard";
 import Brands from "./components/brands/Brands";
 import Currencies from "./components/currency/Currencies";
@@ -90,7 +92,7 @@ import RegisterReport from "./components/report/registerReport/RegisterReport";
 export const route = [
     {
         path: "dashboard",
-        ele: <Dashboard />,
+        ele: window.MPOS_SPRING ? <SpringHome /> : <Dashboard />,
         permission: "",
     },
     {
@@ -230,7 +232,7 @@ export const route = [
     },
     {
         path: "settings",
-        ele: <Settings />,
+        ele: window.MPOS_SPRING ? <SpringSettings /> : <Settings />,
         permission: Permissions.MANAGE_SETTING,
     },
     {

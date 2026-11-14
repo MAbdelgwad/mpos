@@ -47,7 +47,7 @@ public class IdentityService implements ApplicationRunner {
 
     @Transactional
     public Map<String, Object> login(String email, String password) {
-        var users = db.queryForList("SELECT * FROM app_users WHERE email = ?", email.trim().toLowerCase(Locale.ROOT));
+        var users = db.queryForList("SELECT * FROM app_users WHERE email = ? AND enabled=true", email.trim().toLowerCase(Locale.ROOT));
         String hash = users.isEmpty() ? dummyHash : (String) users.getFirst().get("password_hash");
         boolean matches = password.getBytes(StandardCharsets.UTF_8).length <= 72 && encoder.matches(password, hash);
         if (!matches || users.isEmpty()) throw new ResponseStatusException(UNAUTHORIZED, "Invalid email or password");
@@ -60,7 +60,7 @@ public class IdentityService implements ApplicationRunner {
         var publicUser = new LinkedHashMap<String, Object>();
         for (String field : List.of("id", "email", "first_name", "last_name", "language")) publicUser.put(field, user.get(field));
         publicUser.put("image_url", "");
-        List<String> permissions = "ADMIN".equals(user.get("role")) ? List.of("manage_warehouses") : List.of();
+        List<String> permissions = permissions((String)user.get("role"));
         return Map.of("data", Map.of("token", token, "user", publicUser, "permissions", permissions),
                 "message", "Logged in successfully.");
     }
@@ -68,12 +68,18 @@ public class IdentityService implements ApplicationRunner {
     public Optional<Principal> authenticate(String token) {
         var users = db.queryForList("""
             SELECT u.id, u.role FROM access_tokens t JOIN app_users u ON u.id=t.user_id
-            WHERE t.token_hash=? AND t.expires_at > now()
+            WHERE t.token_hash=? AND t.expires_at > now() AND u.enabled=true
             """, digest(token));
         return users.isEmpty() ? Optional.empty() : Optional.of(new Principal(
                 ((Number) users.getFirst().get("id")).longValue(), (String) users.getFirst().get("role")));
     }
 
+    public List<String> permissions(String role) {
+        return db.queryForList("SELECT p.name FROM permissions p JOIN role_permissions rp ON p.id=rp.permission_id JOIN roles r ON r.id=rp.role_id WHERE r.name=? ORDER BY p.id",String.class,role);
+    }
+    public Principal current() {
+        return (Principal) org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+    }
     public void logout(String token) { db.update("DELETE FROM access_tokens WHERE token_hash=?", digest(token)); }
 
     public static String digest(String token) {

@@ -26,5 +26,13 @@ services:
     depends_on:
       db:
         condition: service_healthy
+  web:
+    build:
+      context: ..
+      dockerfile: spring-frontend/Dockerfile
+    ports:
+      - "127.0.0.1:8081:8080"
+    depends_on:
+      - api
 volumes:
   postgres-data:

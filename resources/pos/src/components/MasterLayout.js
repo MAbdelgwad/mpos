@@ -46,7 +46,7 @@ const MasterLayout = (props) => {
                              onClick={menuClick}>
                             <FontAwesomeIcon icon={faBars} className='fs-1'/>
                         </button>
-                        <AsideTopSubMenuItem asideConfig={asideConfig} isMenuCollapse={isMenuCollapse}/>
+                        {!window.MPOS_SPRING && <AsideTopSubMenuItem asideConfig={asideConfig} isMenuCollapse={isMenuCollapse}/>}
                         <Header newRoutes={newRoutes}/>
                     </div>
                 </div>

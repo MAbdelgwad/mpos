@@ -40,7 +40,7 @@ export default [
         fontIcon: <FontAwesomeIcon icon={faPieChart} />,
         to: "/app/dashboard",
         class: "d-flex",
-        permission: Permissions.MANAGE_DASHBOARD,
+        permission: window.MPOS_SPRING ? "" : Permissions.MANAGE_DASHBOARD,
         items: [
             {
                 title: getFormattedMessage("dashboard.title"),

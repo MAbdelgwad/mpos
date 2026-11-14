@@ -1,0 +1,7 @@
+node_modules
+.git
+spring-frontend/dist
+spring-backend/target
+.env
+**/.env
+**/node_modules

@@ -564,7 +564,7 @@ const ProductForm = ( props ) => {
                                     transferImage={transferImage} />
                             </div>
                             {
-                                singleProduct ? '' :
+                                (singleProduct || window.MPOS_SPRING) ? '' :
                                     <div>
                                         <div className='col-md-12 mb-3'>
                                             <h1 className={"text-center"}>{getFormattedMessage( 'add-stock.title' )} : </h1>
