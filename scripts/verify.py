@@ -38,6 +38,12 @@ try:
         for endpoint in ['/api/config', '/api/products', '/api/warehouses', '/api/purchases', '/api/sales', '/api/inventory/balances', '/api/inventory/movements']:
             json.loads(request(endpoint, token=token))
             print('PASS ' + endpoint)
+        for resource in ['base-units', 'units', 'product-categories', 'brands', 'products', 'warehouses', 'suppliers', 'customers', 'users', 'roles', 'purchases', 'sales']:
+            endpoint = '/api/' + resource + '?sort=-created_at&page%5Bsize%5D=10&page%5Bnumber%5D=1'
+            json.loads(request(endpoint, token=token))
+            print('PASS paginated ' + resource)
+        json.loads(request('/api/base-units?page%5Bsize%5D=0', token=token))
+        print('PASS base-unit dropdown')
     finally:
         request('/api/logout', {}, token)
 except (OSError, ValueError, KeyError, AssertionError) as error:

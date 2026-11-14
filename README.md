@@ -65,4 +65,6 @@ npm run build
 bash scripts/collect-logs.sh --browser ~/Downloads/mpos-browser-diagnostics.json
 ```
 
-لم تُشخّص الأخطاء التي أبلغ عنها المستخدم بعد؛ يلزم إعادة حدوثها وإرسال التقرير.
+شُخّصت أخطاء 400 في القوائم وأُصلح ترميز معاملات URL؛ راجع UPGRADE-AR.md. الأخطاء الأخرى، إن ظهرت، تحتاج تقريرًا جديدًا.
+
+إصلاح HTTP 400: عميل Axios يرمّز أقواس معاملات القوائم قبل الإرسال. scripts/verify.sh يفحص الآن المسارات مع pagination، إضافة إلى الفحوص السابقة.

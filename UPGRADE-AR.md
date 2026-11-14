@@ -1,4 +1,18 @@
-# تشغيل أو تحديث حزمة المدفوعات
+# إصلاح أخطاء HTTP 400 في القوائم
+
+هذه حزمة مصدر كاملة تشمل نسخة المدفوعات وإصلاح ترميز معاملات القوائم. كان Axios يرسل page[size] وpage[number] بأقواس غير مرمّزة، فكان Tomcat يرفض الطلب قبل وصوله إلى Spring. أصبحت الأقواس %5B و%5D، مع الحفاظ على الفلاتر وترميز العربية وعدم تكرار المعاملات. لا توجد تغييرات في قاعدة البيانات لهذا الإصلاح.
+
+إذا كانت نسخة المدفوعات تعمل بالفعل، بعد فك هذه الحزمة فوق المجلد الحالي يكفي:
+
+```bash
+cd ~/Storage/mpos-testing/mpos-architecture
+docker compose -p mpos-test-architecture up -d --build --no-deps web
+bash scripts/verify.sh
+```
+
+حدّث المتصفح بـCtrl+Shift+R. أضيفت إلى verify.sh فحوص القوائم بمعاملات pagination المرمّزة. إذا ظهر فشل جديد، أرسل نص الاستجابة والتقرير الجديد.
+
+## تشغيل كامل أو ترقية من نسخة أقدم
 
 هذه حزمة مصدر كاملة للنسخة الحالية مع تسجيل أخطاء الباك إند والواجهة وجمع تقارير التشخيص. تتضمن إصلاح صلاحيات Nginx السابق. تتضمن المبيعات والمشتريات والمخزون وتسجيل الدفعات وعكسها. لا تتضمن POS أو بوابة دفع.
 
@@ -8,7 +22,7 @@
 
 ```bash
 mkdir -p ~/Storage/mpos-testing
-unzip -o ~/Downloads/mpos-payments.zip -d ~/Storage/mpos-testing
+unzip -o ~/Downloads/mpos-query-fix.zip -d ~/Storage/mpos-testing
 cd ~/Storage/mpos-testing/mpos-architecture
 bash scripts/start.sh
 ```

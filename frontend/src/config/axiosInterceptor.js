@@ -1,3 +1,4 @@
+import {prepareQueryUrl} from './queryEncoding';
 import {httpDiagnostic} from '../shared/diagnostics/diagnostics';
 import {Tokens} from '../constants';
 import {environment} from './environment';
@@ -7,7 +8,7 @@ export default {
             const token = localStorage.getItem(Tokens.ADMIN);
             if (token) config.headers.Authorization = `Bearer ${token}`;
             // Let the browser add the multipart boundary.
-            return config;
+            return prepareQueryUrl(config, axios);
         });
         axios.interceptors.response.use(response => { try { httpDiagnostic(response); } catch (_) {} return response; }, error => {
             try { httpDiagnostic(error.response, error); } catch (_) {}

@@ -526,4 +526,12 @@ class ApiIntegrationTest {
             assertEquals(1,db.queryForObject("SELECT count(*) FROM payments_upgrade_test.role_permissions rp JOIN payments_upgrade_test.roles r ON r.id=rp.role_id JOIN payments_upgrade_test.permissions p ON p.id=rp.permission_id WHERE r.name='ADMIN' AND p.name='manage_payments'",Integer.class));
         } finally {db.execute("DROP SCHEMA payments_upgrade_test CASCADE");}
     }
+    @Test void encodedBrowserListParametersReachAllControllers() throws Exception {
+        String token=login();
+        for(String resource:java.util.List.of("base-units","units","product-categories","brands","products","warehouses","suppliers","customers","users","roles","purchases","sales")) {
+            var response=request("GET","/api/"+resource+"?sort=-created_at&page%5Bsize%5D=10&page%5Bnumber%5D=1",token,null);
+            assertEquals(200,response.statusCode(),resource+": "+response.body());
+        }
+        assertEquals(200,request("GET","/api/base-units?page%5Bsize%5D=0",token,null).statusCode());
+    }
 }
