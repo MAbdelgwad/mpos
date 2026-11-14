@@ -1,3 +1,4 @@
+import {languageSelection} from './locales/selection';
 import React, { useEffect, useState } from "react";
 import { Route, useLocation, Navigate, Routes } from "react-router-dom";
 import "./assets/sass/style.react.scss";
@@ -24,12 +25,14 @@ function App() {
     const { selectedLanguage, config, language } = useSelector(
         (state) => state
     );
-    const [allLocales, setAllLocales] = useState({});
+    const [allLocales, setAllLocales] = useState(getFiles);
     const [messages, setMessages] = useState({});
     const [userEditedMessage, setUserEditedMessage] = useState({});
     const updateLanguag =
         allLocales[updatedLanguage ? updatedLanguage : selectedLanguage];
     const [languageData, setLanguageData] = useState([]);
+    const springLanguage = languageSelection(updatedLanguage, selectedLanguage, allLocales);
+    const activeLanguage = window.MPOS_SPRING ? springLanguage.language : (updatedLanguage || selectedLanguage);
 
     useEffect(() => {
         const getData = getFiles();
@@ -72,7 +75,7 @@ function App() {
 
     useEffect(() => {
         selectCSS();
-    }, [location.pathname]);
+    }, [location.pathname, activeLanguage]);
 
     useEffect(() => {
         if (token) {
@@ -82,7 +85,7 @@ function App() {
     }, []);
 
     const selectCSS = () => {
-        if (updatedLanguage === "ar") {
+        if (activeLanguage === "ar") {
             require("./assets/css/custom.rtl.css");
             require("./assets/css/style.rtl.css");
             require("./assets/css/frontend.rtl.css");
@@ -94,14 +97,14 @@ function App() {
     };
 
     useEffect(() => {
-        addRTLSupport(updatedLanguage ? updatedLanguage : selectedLanguage);
-    }, [updatedLanguage, selectedLanguage]);
+        addRTLSupport(activeLanguage);
+    }, [activeLanguage]);
 
     return (
         <div className="d-flex flex-column flex-root">
             <IntlProvider
-                locale={settingsKey.DEFAULT_LOCALE}
-                messages={messages}
+                locale={window.MPOS_SPRING ? activeLanguage : settingsKey.DEFAULT_LOCALE}
+                messages={window.MPOS_SPRING ? springLanguage.messages : messages}
             >
                 <Routes>
                     <Route path="/login" element={<Login />} />

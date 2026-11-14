@@ -47,6 +47,7 @@ export const decimalValidate = ( event ) => {
 
 export const addRTLSupport = ( rtlLang ) => {
     const html = document.getElementsByTagName( "html" )[ 0 ];
+    html.setAttribute("lang", rtlLang === "ar" ? "ar" : "en");
     const att = document.createAttribute( "dir" );
     att.value = "rtl";
     if ( rtlLang === "ar" ) {
