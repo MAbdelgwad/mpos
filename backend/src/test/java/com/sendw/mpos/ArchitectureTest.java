@@ -33,12 +33,14 @@ class ArchitectureTest {
         }
     }
 
-    @Test void purchasingAndInventoryUsePersistencePorts() throws Exception {
+    @Test void allApplicationModulesUsePersistencePorts() throws Exception {
         for (var path : sources()) {
             String name = path.toString();
-            if (!(name.contains("/purchasing/application/") || name.contains("/inventory/application/"))) continue;
+            if (!name.contains("/application/")) continue;
             var source = Files.readString(path);
-            assertFalse(source.contains("JdbcTemplate"), path + " must use a persistence port");
+            for(String forbidden : List.of("org.springframework.jdbc", "JdbcTemplate", "SELECT ", "INSERT INTO ", "UPDATE ", "DELETE FROM ")) {
+                assertFalse(source.contains(forbidden), path + " must use a persistence port: " + forbidden);
+            }
             assertFalse(source.contains(".infrastructure."), path + " must not depend on adapter implementations");
         }
     }

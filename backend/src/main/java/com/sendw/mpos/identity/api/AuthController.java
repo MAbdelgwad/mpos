@@ -1,5 +1,6 @@
 package com.sendw.mpos.identity.api;
 import com.sendw.mpos.identity.application.IdentityService;
+import com.sendw.mpos.identity.application.LoginResult;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
@@ -14,9 +15,9 @@ public class AuthController {
     public record Login(@NotBlank @Email @Size(max=254) String email, @NotBlank @Size(max=72) String password) {}
 
     @PostMapping(value="/login", consumes="application/json")
-    public Map<String,Object> login(@Valid @RequestBody Login request) { return identity.login(request.email(),request.password()); }
+    public LoginResult login(@Valid @RequestBody Login request) { return identity.login(request.email(),request.password()); }
     @PostMapping(value="/login", consumes={"multipart/form-data","application/x-www-form-urlencoded"})
-    public Map<String,Object> formLogin(@Valid @ModelAttribute Login request) {return identity.login(request.email(),request.password());}
+    public LoginResult formLogin(@Valid @ModelAttribute Login request) {return identity.login(request.email(),request.password());}
     @PostMapping("/validate-auth-token")
     public Map<String,Object> token() {return Map.of("success",true);}
     @PostMapping("/logout")

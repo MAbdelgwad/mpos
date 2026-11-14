@@ -81,3 +81,7 @@ mvn -Dmpos.browser=true verify
 Supplier payments and inventory valuation; sales/payments/returns; POS registers/holds/coupons; quotations/expenses; reports/PDF/Excel/import; mail/SMS/password-recovery flows; full user profile editing and production login rate limiting. Product stock values now reflect warehouse balances. Opening-stock parameters in the old product form remain rejected; use the dedicated inventory opening-balance screen. Do not use this version for live sales.
 
 The frontend retains the repository's existing dependencies. The build reports existing CSS deprecation warnings; dependency modernization is a separate task. PostgreSQL tests and browser smoke do not substitute for financial parity tests or production deployment validation.
+
+## Repository boundaries
+
+All application modules now depend on dedicated repository ports; SQL and JdbcTemplate remain in infrastructure adapters. ArchitectureTest enforces this across the whole backend. Login, password changes, language changes, warehouses and image content use explicit records. Remaining legacy Map contracts are documented in ../docs/architecture-ar.md. This iteration passed 31 tests with one optional browser test skipped; frontend sources and Flyway migrations were unchanged.

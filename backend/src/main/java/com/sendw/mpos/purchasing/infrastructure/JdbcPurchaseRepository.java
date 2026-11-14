@@ -18,7 +18,7 @@ public class JdbcPurchaseRepository implements PurchaseRepository {
     @Override public List<Map<String,Object>> lockUnit(Object id) { return db.queryForList("SELECT base_unit FROM units WHERE id=? FOR SHARE",id); }
     private List<Object> values(Header h) {
         var t=h.totals();
-        return new ArrayList<>(Arrays.asList(h.supplier(),h.warehouse(),h.date(),h.status(),t.get("tax_rate"),t.get("tax_amount"),t.get("discount"),t.get("shipping"),t.get("grand_total"),h.notes()));
+        return new ArrayList<>(Arrays.asList(h.supplier(),h.warehouse(),java.sql.Date.valueOf(h.date()),h.status(),t.get("tax_rate"),t.get("tax_amount"),t.get("discount"),t.get("shipping"),t.get("grand_total"),h.notes()));
     }
     @Override public long insert(Header header) {
         var args=values(header);args.add(header.actor());

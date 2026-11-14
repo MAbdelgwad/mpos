@@ -28,7 +28,7 @@ public class PurchaseService {
             if(!body.containsKey("version") || Validation.integer(body.get("version").toString())!=((Number)old.get("version")).intValue())throw Requests.conflict("Purchase changed; reload before editing");}
         for(String field:List.of("paid_amount","received_amount"))if(Requests.number(body,field,false).signum()!=0)throw Validation.invalid("Purchase payments are not implemented yet");
         long supplier=Requests.id(body,"supplier_id"),warehouse=Requests.id(body,"warehouse_id");int status=Requests.choice(body,"status",2,3);
-        var date=java.sql.Date.valueOf(Requests.date(body));String notes=Requests.text(body,"notes",2000,false);
+        var date=Requests.date(body);String notes=Requests.text(body,"notes",2000,false);
         var lines=Requests.items(body,"purchase_items").stream().map(PurchaseMath::line).toList();var seen=new HashSet<Long>();
         for(var line:lines){long product=(long)line.get("product_id");if(!seen.add(product))throw Validation.invalid("Duplicate product in purchase");
             // Hold product/unit rows while receiving so their unit meaning cannot change concurrently.

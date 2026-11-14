@@ -12,6 +12,6 @@ public class UiController {
 @PutMapping("/ui-settings")
     public Map<String,Object> updateSettings(@RequestBody Map<String,String> body) { return service.updateSettings(body); }
 @GetMapping("/config") public Map<String,Object> config() { return service.config(); }
-@PostMapping("/change-language") public Map<String,Object> language(@RequestBody Map<String,String> b) { return service.language(b); }
+@PostMapping("/change-language") public Map<String,Object> language(@RequestBody com.sendw.mpos.settings.application.LanguageChange b) { return service.language(b); }
 @GetMapping("/catalog-summary") public Map<String,Object> summary() { return service.summary(); }
 }

@@ -199,6 +199,58 @@ class ApiIntegrationTest {
         assertEquals(201,unit.statusCode(),unit.body());
         assertEquals("Piece",JsonPath.read(unit.body(),"$.data.attributes.base_unit_name.name"));
     }
+    @Test void passwordChangeDtoRevokesEverySessionAndPreservesPublicLoginContract() throws Exception {
+        String admin=login();
+        long viewer=db.queryForObject("SELECT id FROM roles WHERE name='VIEWER'",Long.class);
+        create("users",admin,"""
+            {"first_name":"Password test","email":"password-test@example.com","role_id":%d,
+             "password":"old-long-password","confirm_password":"old-long-password"}
+            """.formatted(viewer));
+        String credentials="{\"email\":\"password-test@example.com\",\"password\":\"old-long-password\"}";
+        var first=request("POST","/api/login",null,credentials);
+        assertEquals(200,first.statusCode(),first.body());
+        Map<String,Object> publicUser=JsonPath.read(first.body(),"$.data.user");
+        assertEquals(java.util.Set.of("id","email","first_name","last_name","language","image_url"),publicUser.keySet());
+        String token=JsonPath.read(first.body(),"$.data.token");
+        String second=JsonPath.read(request("POST","/api/login",null,credentials).body(),"$.data.token");
+        assertEquals(422,request("PATCH","/api/change-password",token,"{\"current_password\":\"old-long-password\",\"password\":\"new-long-password\",\"password_confirmation\":\"mismatch\"}").statusCode());
+        assertEquals(200,request("GET","/api/config",second,null).statusCode());
+        var changed=request("PATCH","/api/change-password",token,"{\"current_password\":\"old-long-password\",\"password\":\"new-long-password\",\"password_confirmation\":\"new-long-password\"}");
+        assertEquals(200,changed.statusCode(),changed.body());
+        assertEquals(401,request("GET","/api/config",token,null).statusCode());
+        assertEquals(401,request("GET","/api/config",second,null).statusCode());
+        assertEquals(401,request("POST","/api/login",null,credentials).statusCode());
+        var fresh=request("POST","/api/login",null,credentials.replace("old-long-password","new-long-password"));
+        assertEquals(200,fresh.statusCode(),fresh.body());
+        String freshToken=JsonPath.read(fresh.body(),"$.data.token");
+        assertEquals(422,request("POST","/api/change-language",freshToken,"{}").statusCode());
+        assertEquals(200,request("POST","/api/change-language",freshToken,"{\"language\":\"ar\"}").statusCode());
+        assertEquals("ar",JsonPath.read(request("POST","/api/login",null,credentials.replace("old-long-password","new-long-password")).body(),"$.data.user.language"));
+    }
+
+    @Test void invalidSettingsUpdateRollsBackEarlierValidFields() throws Exception {
+        String token=login();
+        String previous=db.queryForObject("SELECT value FROM ui_settings WHERE key='company_name'",String.class);
+        var response=request("PUT","/api/ui-settings",token,"{\"company_name\":\"Must roll back\",\"default_language\":\"unsupported\"}");
+        assertEquals(422,response.statusCode(),response.body());
+        assertEquals(previous,db.queryForObject("SELECT value FROM ui_settings WHERE key='company_name'",String.class));
+    }
+
+    @Test void summaryRespectsPermissionsAcrossModuleRepositories() throws Exception {
+        var fixture=stockFixture();
+        var summary=request("GET","/api/catalog-summary",fixture.token(),null);
+        assertEquals(200,summary.statusCode(),summary.body());
+        assertEquals(2,((Number)JsonPath.read(summary.body(),"$.data.warehouses")).intValue());
+        assertEquals(1,((Number)JsonPath.read(summary.body(),"$.data.products")).intValue());
+        long permission=db.queryForObject("SELECT id FROM permissions WHERE name='manage_brands'",Long.class);
+        long role=create("roles",fixture.token(),"{\"name\":\"Brand summary\",\"permissions\":["+permission+"]}");
+        create("users",fixture.token(),"{\"first_name\":\"Summary\",\"email\":\"summary@example.com\",\"role_id\":"+role+",\"password\":\"summary-long-password\",\"confirm_password\":\"summary-long-password\"}");
+        String token=JsonPath.read(request("POST","/api/login",null,"{\"email\":\"summary@example.com\",\"password\":\"summary-long-password\"}").body(),"$.data.token");
+        Map<String,Object> restricted=JsonPath.read(request("GET","/api/catalog-summary",token,null).body(),"$.data");
+        assertEquals(java.util.Set.of("brands"),restricted.keySet());
+        assertEquals(1,((Number)restricted.get("brands")).intValue());
+    }
+
     record StockFixture(String token,long warehouse,long target,long supplier,long product,long unit,long base,long brand,long category) {}
     StockFixture stockFixture() throws Exception {
         String token=login();long warehouse=create("warehouses",token,WAREHOUSE),target=create("warehouses",token,WAREHOUSE.replace("المخزن الرئيسي","Second warehouse"));

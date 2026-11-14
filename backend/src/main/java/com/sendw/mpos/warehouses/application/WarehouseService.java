@@ -1,24 +1,16 @@
 package com.sendw.mpos.warehouses.application;
 
-import jakarta.validation.constraints.*;
 import java.util.*;
 import org.springframework.http.HttpStatus;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 import org.springframework.web.server.ResponseStatusException;
 
 @org.springframework.stereotype.Service
 public class WarehouseService {
-    private final JdbcTemplate db;
-    public WarehouseService(JdbcTemplate db) { this.db=db; }
-    public record WarehouseInput(
-        @NotBlank @Size(max=255) String name,
-        @NotBlank @Pattern(regexp="[0-9+() -]{1,40}") String phone,
-        @NotBlank @Size(max=100) String country,
-        @NotBlank @Size(max=100) String city,
-        @Email @Size(max=254) String email,
-        @Size(max=30) String zip_code) {}
+    private final WarehouseRepository repository;
+    public WarehouseService(WarehouseRepository repository) { this.repository=repository; }
+
 
 
     public Map<String,Object> list(
@@ -31,14 +23,9 @@ public class WarehouseService {
         String column=descending ? sort.substring(1) : sort;
         if(!Set.of("id","name","phone","country","city","email","zip_code","created_at","updated_at").contains(column)) throw bad("Unsupported sort field");
         // A size of zero is the existing React dropdown convention for all records.
-        String where=" WHERE name ILIKE ? OR phone ILIKE ? OR country ILIKE ? OR city ILIKE ? OR email ILIKE ?";
         String pattern="%" + search.replace("\\","\\\\").replace("%","\\%").replace("_","\\_") + "%";
-        Object[] params={pattern,pattern,pattern,pattern,pattern};
-        long total=db.queryForObject("SELECT count(*) FROM warehouses"+where,Long.class,params);
-        String sql="SELECT * FROM warehouses"+where+" ORDER BY "+column+(descending?" DESC":" ASC")+", id ASC";
-        List<Object> values=new ArrayList<>(Arrays.asList(params));
-        if(size>0) { sql+=" LIMIT ? OFFSET ?"; values.add(size); values.add(((long)page-1)*size); }
-        var data=db.queryForList(sql,values.toArray()).stream().map(this::resource).toList();
+        var result=repository.search(pattern,column,descending,page,size);long total=result.total();
+        var data=result.rows().stream().map(this::resource).toList();
         return Map.of("data",data,"meta",Map.of("total",total,"current_page",size==0?1:page,"per_page",size==0?total:size,
                 "last_page",size==0?1:Math.max(1,(total+size-1)/size)));
     }
@@ -49,27 +36,23 @@ public class WarehouseService {
 
     @Transactional
     public Map<String,Object> create(  WarehouseInput input) {
-        Long id=db.queryForObject("""
-            INSERT INTO warehouses(name,phone,country,city,email,zip_code) VALUES (?,?,?,?,?,?) RETURNING id
-            """,Long.class, input.name().trim(),input.phone(),input.country().trim(),input.city().trim(),nullable(input.email()),nullable(input.zip_code()));
+        long id=repository.insert(normalize(input));
         return show(id);
     }
 
     @Transactional
     public Map<String,Object> update( long id,   WarehouseInput input) {
-        int count=db.update("""
-            UPDATE warehouses SET name=?,phone=?,country=?,city=?,email=?,zip_code=?,updated_at=now() WHERE id=?
-            """,input.name().trim(),input.phone(),input.country().trim(),input.city().trim(),nullable(input.email()),nullable(input.zip_code()),id);
+        int count=repository.update(id,normalize(input));
         if(count==0) throw missing();
         return show(id);
     }
 
     public Map<String,Object> delete( long id) {
-        if(db.update("DELETE FROM warehouses WHERE id=?",id)==0) throw missing();
+        if(repository.delete(id)==0) throw missing();
         return Map.of("success",true,"message","Warehouse deleted successfully");
     }
     private Map<String,Object> find(long id) {
-        var rows=db.queryForList("SELECT * FROM warehouses WHERE id=?",id);
+        var rows=repository.find(id);
         if(rows.isEmpty()) throw missing(); return rows.getFirst();
     }
     private Map<String,Object> resource(Map<String,Object> row) {
@@ -80,6 +63,8 @@ public class WarehouseService {
         }
         return Map.of("type","warehouses","id",id,"attributes",attributes,"links",Map.of("self","/api/warehouses/"+id));
     }
+    public long count() { com.sendw.mpos.identity.application.Permissions.require("manage_warehouses");return repository.count(); }
+    private WarehouseInput normalize(WarehouseInput input) { return new WarehouseInput(input.name().trim(),input.phone(),input.country().trim(),input.city().trim(),nullable(input.email()),nullable(input.zip_code())); }
     private static String nullable(String value) { return value==null || value.isBlank() ? null : value.trim(); }
     private static ResponseStatusException missing() { return new ResponseStatusException(HttpStatus.NOT_FOUND,"Warehouse not found"); }
     private static ResponseStatusException bad(String message) { return new ResponseStatusException(HttpStatus.BAD_REQUEST,message); }

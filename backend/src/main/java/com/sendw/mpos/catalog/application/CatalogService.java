@@ -1,6 +1,6 @@
 package com.sendw.mpos.catalog.application;
 import com.sendw.mpos.shared.domain.Requests;
-import com.sendw.mpos.catalog.infrastructure.Barcodes;
+
 import com.sendw.mpos.shared.domain.Validation;
 import com.sendw.mpos.identity.application.Permissions;
 import static com.sendw.mpos.shared.domain.Validation.*;
@@ -9,7 +9,9 @@ import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.util.*;
-import org.springframework.jdbc.core.JdbcTemplate;
+import com.sendw.mpos.catalog.domain.CatalogSchema.Spec;
+import static com.sendw.mpos.catalog.domain.CatalogSchema.SPECS;
+import com.sendw.mpos.media.application.MediaService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -17,20 +19,15 @@ import org.springframework.http.HttpStatus;
 
 @Service
 public class CatalogService {
-    public record Spec(String table,String permission,Set<String> fields,Set<String> required) {}
-    static Spec spec(String table,String permission,String fields,String required) {
-        return new Spec(table,permission,new LinkedHashSet<>(List.of(fields.split(","))),Set.of(required.split(",")));
+    private final CatalogRepository repository;
+    private final BarcodeRenderer barcodes;
+    private final MediaService images;
+    public CatalogService(CatalogRepository repository,BarcodeRenderer barcodes,MediaService images) {this.repository=repository;this.barcodes=barcodes;this.images=images;}
+    public Map<String,Object> summary(List<String> permissions) {
+        var result=new LinkedHashMap<String,Object>();
+        SPECS.forEach((kind,spec)->{if(permissions.contains(spec.permission()))result.put(kind,repository.count(spec));});
+        return result;
     }
-    public static final Map<String,Spec> SPECS=Map.of(
-        "brands",spec("brands","manage_brands","name,description","name"),
-        "product-categories",spec("product_categories","manage_product_categories","name,description","name"),
-        "base-units",spec("base_units","manage_units","name","name"),
-        "units",spec("units","manage_units","name,short_name,base_unit","name,short_name,base_unit"),
-        "customers",spec("customers","manage_customers","name,email,phone,country,city,address,dob","name,email,phone,country,city,address"),
-        "suppliers",spec("suppliers","manage_suppliers","name,email,phone,country,city,address","name,email,phone,country,city,address"),
-        "products",spec("products","manage_products","name,code,product_category_id,brand_id,product_cost,product_price,product_unit,sale_unit,purchase_unit,stock_alert,quantity_limit,order_tax,tax_type,barcode_symbol,notes","name,code,product_category_id,brand_id,product_cost,product_price,product_unit,barcode_symbol"));
-    private final JdbcTemplate db;
-    public CatalogService(JdbcTemplate db) {this.db=db;}
     Spec access(String kind) {
         Spec spec=SPECS.get(kind);
         if(spec==null) throw new ResponseStatusException(HttpStatus.NOT_FOUND,"Unknown resource");
@@ -45,20 +42,18 @@ public class CatalogService {
         if(!s.fields().contains(column) && !Set.of("id","created_at","updated_at").contains(column)) throw invalid("Unsupported sort field");
         String search=query.getOrDefault("filter[search]","");if(search.length()>255) throw invalid("Search too long");
         String pattern="%"+search.replace("\\","\\\\").replace("%","\\%").replace("_","\\_")+"%";
-        String where=" WHERE name ILIKE ?";List<Object> args=new ArrayList<>();args.add(pattern);
+        var filters=new LinkedHashMap<String,Long>();
         for(String f:List.of("base_unit","brand_id","product_category_id","product_unit")) {
             String value=query.getOrDefault("filter["+f+"]",query.get(f));
-            if(value!=null && !value.isBlank() && s.fields().contains(f)) {where+=" AND "+f+"=?";args.add(positiveId(value));}
+            if(value!=null&&!value.isBlank()&&s.fields().contains(f))filters.put(f,positiveId(value));
         }
-        long total=db.queryForObject("SELECT count(*) FROM "+s.table()+where,Long.class,args.toArray());
-        String sql="SELECT * FROM "+s.table()+where+" ORDER BY "+column+(desc?" DESC":" ASC")+",id";
-        if(size>0) {sql+=" LIMIT ? OFFSET ?";args.add(size);args.add(((long)page-1)*size);}
-        var data=db.queryForList(sql,args.toArray()).stream().map(row->resource(kind,row)).toList();
+        var result=repository.search(s,pattern,filters,column,desc,page,size);long total=result.total();
+        var data=result.rows().stream().map(row->resource(kind,row)).toList();
         return Map.of("data",data,"meta",Map.of("total",total,"current_page",size==0?1:page,"per_page",size==0?total:size,"last_page",size==0?1:Math.max(1,(total+size-1)/size)));
     }
     public Map<String,Object> show(String kind,long id) {Spec s=access(kind);return Map.of("data",resource(kind,find(s.table(),id)));}
     Map<String,Object> find(String table,long id) {
-        var rows=db.queryForList("SELECT * FROM "+table+" WHERE id=?",id);
+        var rows=repository.find(table,id);
         if(rows.isEmpty())throw missing();return rows.getFirst();
     }
 
@@ -88,7 +83,7 @@ public class CatalogService {
             out.put(field,normalized);
         }
         if(kind.equals("products")) {
-            Barcodes.image((String)out.get("code"),(Integer)out.get("barcode_symbol"));
+            barcodes.image((String)out.get("code"),(Integer)out.get("barcode_symbol"));
             for(String f:List.of("sale_unit","purchase_unit")) if(out.get(f)!=null) {
                 var unit=find("units",((Number)out.get(f)).longValue());
                 if(!unit.get("base_unit").equals(out.get("product_unit")))throw invalid(f+" must belong to the product base unit");
@@ -100,48 +95,44 @@ public class CatalogService {
     public Map<String,Object> save(String kind,Long id,Map<String,Object> body) {
         Spec s=access(kind);var values=validate(kind,body);
         if(id==null) {
-            String fields=String.join(",",values.keySet());String placeholders=String.join(",",Collections.nCopies(values.size(),"?"));
-            id=db.queryForObject("INSERT INTO "+s.table()+"("+fields+") VALUES ("+placeholders+") RETURNING id",Long.class,values.values().toArray());
+            id=repository.insert(s,values);
         } else {
             find(s.table(),id);
             if(kind.equals("products")) {
-                Object oldUnit=db.queryForObject("SELECT product_unit FROM products WHERE id=? FOR UPDATE",Long.class,id);
-                if(!oldUnit.equals(values.get("product_unit")) && db.queryForObject("SELECT count(*) FROM stock_movements WHERE product_id=?",Long.class,id)>0)throw Requests.conflict("A product base unit cannot change after inventory movements exist");
+                Object oldUnit=repository.lockProductUnit(id);
+                if(!oldUnit.equals(values.get("product_unit")) && repository.hasMovements(id))throw Requests.conflict("A product base unit cannot change after inventory movements exist");
             }
             if(kind.equals("units")) {
-                long count=db.queryForObject("SELECT count(*) FROM products WHERE (sale_unit=? OR purchase_unit=?) AND product_unit<>?",Long.class,id,id,values.get("base_unit"));
-                if(count>0)throw invalid("Unit is used by products with a different base unit");
+                if(repository.unitUsedWithOtherBase(id,values.get("base_unit")))throw invalid("Unit is used by products with a different base unit");
             }
-            var args=new ArrayList<>(values.values());args.add(id);
-            db.update("UPDATE "+s.table()+" SET "+String.join(",",values.keySet().stream().map(f->f+"=?").toList())+",updated_at=now() WHERE id=?",args.toArray());
+            repository.update(s,id,values);
         }
         return show(kind,id);
     }
     @Transactional
     public void delete(String kind,long id) {
-        Spec s=access(kind);if(db.update("DELETE FROM "+s.table()+" WHERE id=?",id)==0)throw missing();
-        db.update("DELETE FROM media WHERE owner_type=? AND owner_id=?",kind,id);
+        Spec s=access(kind);if(repository.delete(s,id)==0)throw missing();
+        images.deleteOwned(kind,id);
     }
     Map<String,Object> resource(String kind,Map<String,Object> row) {
         var a=new LinkedHashMap<>(row);Object id=a.remove("id");
         a.replaceAll((key,value)->value instanceof Timestamp t?t.toInstant().toString():value instanceof java.sql.Date d?d.toString():value);
         if(kind.equals("units"))a.put("base_unit_name",find("base_units",((Number)a.get("base_unit")).longValue()));
-        var media=db.queryForList("SELECT id FROM media WHERE owner_type=? AND owner_id=? ORDER BY id",kind,id);
-        List<String> urls=media.stream().map(x->"/api/media/"+x.get("id")).toList();
+        var media=images.references(kind,((Number)id).longValue());
+        List<String> urls=media.stream().map(x->"/api/media/"+x).toList();
         if(kind.equals("brands") || kind.equals("product-categories")) {
             a.put("image",urls.isEmpty()?"":urls.getFirst());
-            String foreign=kind.equals("brands")?"brand_id":"product_category_id";
-            a.put("product_count",db.queryForObject("SELECT count(*) FROM products WHERE "+foreign+"=?",Long.class,id));
+            a.put("product_count",repository.productCount(kind,id));
         }
         if(kind.equals("products")) {
             a.put("product_category_name",find("product_categories",((Number)a.get("product_category_id")).longValue()).get("name"));
             a.put("brand_name",find("brands",((Number)a.get("brand_id")).longValue()).get("name"));
             a.put("product_unit_name",find("base_units",((Number)a.get("product_unit")).longValue()));
             for(String f:List.of("sale_unit","purchase_unit"))a.put(f+"_name",a.get(f)==null?"":find("units",((Number)a.get(f)).longValue()));
-            a.put("images",Map.of("imageUrls",urls,"id",media.stream().map(x->x.get("id").toString()).toList()));
-            String barcode=Barcodes.image((String)a.get("code"),((Number)a.get("barcode_symbol")).intValue());
+            a.put("images",Map.of("imageUrls",urls,"id",media.stream().map(Object::toString).toList()));
+            String barcode=barcodes.image((String)a.get("code"),((Number)a.get("barcode_symbol")).intValue());
             a.put("barcode_image_url",barcode);a.put("barcode_url",barcode);
-            var balances=db.queryForList("SELECT b.warehouse_id,b.product_id,b.quantity,w.name FROM stock_balances b JOIN warehouses w ON w.id=b.warehouse_id WHERE product_id=? ORDER BY warehouse_id",id);
+            var balances=repository.balances(id);
             BigDecimal total=balances.stream().map(x->(BigDecimal)x.get("quantity")).reduce(BigDecimal.ZERO,BigDecimal::add);
             a.put("in_stock",total);a.put("stock",Map.of("quantity",total));a.put("stocks",balances);a.put("warehouse",balances.stream().map(x->Map.of("id",x.get("warehouse_id"),"name",x.get("name"),"total_quantity",x.get("quantity"))).toList());
         }

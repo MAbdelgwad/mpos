@@ -7,7 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 import com.sendw.mpos.warehouses.application.WarehouseService;
-import com.sendw.mpos.warehouses.application.WarehouseService.WarehouseInput;
+import com.sendw.mpos.warehouses.application.WarehouseInput;
 @RestController
 @RequestMapping("/api/warehouses")
 public class WarehouseController {

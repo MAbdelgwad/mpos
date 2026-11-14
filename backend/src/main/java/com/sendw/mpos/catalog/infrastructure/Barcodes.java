@@ -5,9 +5,9 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.util.Base64;
 import javax.imageio.ImageIO;
-public final class Barcodes {
-    private Barcodes() {}
-    public static String image(String code,int symbol) {
+@org.springframework.stereotype.Component
+public final class Barcodes implements com.sendw.mpos.catalog.application.BarcodeRenderer {
+    @Override public String image(String code,int symbol) {
         BarcodeFormat format=switch(symbol) {case 1->BarcodeFormat.CODE_128;case 2->BarcodeFormat.CODE_39;case 3->BarcodeFormat.EAN_8;case 4->BarcodeFormat.UPC_A;case 5->BarcodeFormat.EAN_13;default->throw Validation.invalid("Invalid barcode symbol");};
         try {
             var matrix=new MultiFormatWriter().encode(code,format,320,100);

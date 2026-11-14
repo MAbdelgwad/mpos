@@ -10,7 +10,7 @@ public class MediaController {
     public MediaController(MediaService media){this.media=media;}
     @GetMapping("/media/{id}") public ResponseEntity<byte[]> get(@PathVariable UUID id) {
         var row=media.get(id);
-        return ResponseEntity.ok().header("X-Content-Type-Options","nosniff").cacheControl(CacheControl.noCache()).contentType(MediaType.parseMediaType((String)row.get("mime"))).body((byte[])row.get("content"));
+        return ResponseEntity.ok().header("X-Content-Type-Options","nosniff").cacheControl(CacheControl.noCache()).contentType(MediaType.parseMediaType(row.mime())).body(row.content());
     }
     @DeleteMapping("/products-image-delete/{id}") public Map<String,Object> delete(@PathVariable UUID id) {
         media.deleteProductImage(id);return Map.of("success",true);

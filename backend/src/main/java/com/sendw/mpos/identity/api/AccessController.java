@@ -25,5 +25,5 @@ public class AccessController {
 @RequestMapping(value={"/users","/users/{id}"},method={RequestMethod.POST,RequestMethod.PUT,RequestMethod.PATCH},consumes="multipart/form-data")
      public ResponseEntity<?> formUser(@PathVariable(required=false) Long id,MultipartHttpServletRequest req) { var body=new LinkedHashMap<String,Object>();req.getParameterMap().forEach((k,v)->body.put(k,v[0]));var files=req.getMultiFileMap().values().stream().flatMap(List::stream).filter(f->!f.isEmpty()).toList();return ResponseEntity.status(id==null?201:200).body(service.formUser(id,body,com.sendw.mpos.shared.api.Uploads.read(files))); }
 @DeleteMapping("/users/{id}")  public Map<String,Object> deleteUser(@PathVariable long id) { return service.deleteUser(id); }
-@PatchMapping("/change-password")  public Map<String,Object> changePassword(@RequestBody Map<String,Object> b) { return service.changePassword(b); }
+@PatchMapping("/change-password")  public Map<String,Object> changePassword(@RequestBody com.sendw.mpos.identity.application.PasswordChange b) { return service.changePassword(b); }
 }

@@ -1,11 +1,11 @@
 package com.sendw.mpos.purchasing.application;
 
-import java.sql.Date;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
 public interface PurchaseRepository {
-    record Header(long supplier, long warehouse, Date date, int status, Map<String,Object> totals, String notes, long actor) {}
+    record Header(long supplier, long warehouse, LocalDate date, int status, Map<String,Object> totals, String notes, long actor) {}
     record Page(List<Map<String,Object>> rows, long total) {}
     Map<String,Object> find(long id, boolean lock);
     List<Map<String,Object>> lockProduct(long id);
