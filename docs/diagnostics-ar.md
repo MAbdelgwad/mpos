@@ -44,3 +44,7 @@ bash scripts/collect-logs.sh --browser ~/Downloads/mpos-browser-diagnostics.json
 ## إصلاح 400 عند فتح القوائم
 
 أظهر السجل المرفق Invalid character found in the request target مع page[size] حرفية. هذا رفض من محلل HTTP في Tomcat قبل RequestLoggingFilter، لذا قد لا يظهر Request ID. الإصلاح في عميل Axios المشترك: ترميز الأقواس في query إلى %5B و%5D بعد تسلسل المعاملات. لا يحتاج تخفيف قواعد Tomcat أو تعديل Nginx. تشمل اختبارات الواجهة إرسال طلبات فعلية عبر Axios والتحقق من الرابط المرسل، وتشمل اختبارات API قراءة القوائم المرمّزة. الفحوص القديمة للمسارات دون معاملات لم تكن تكشف هذا الخلل.
+
+## إصلاح خطأ data بعد استجابة تصنيفات ناجحة
+
+موضع app.js:383:3534443 في نسخة query-fix يطابق معالج الخطأ في fetchProductCategories. عند meta.total=0 استخدم الكود || للرجوع إلى data.total غير الموجودة على المصفوفة، فأرسل undefined إلى Redux؛ ثم قرأ معالج الاستثناء response.data رغم أن الخطأ محلي ولا يحتوي response. أُصلح احتساب العدد باستخدام ?? ومعالجة الخطأ وإنهاء التحميل في finally. اختبارات Node تشغّل action الفعلي مع Redux الحقيقي لقائمة فارغة وغير فارغة ولأخطاء HTTP وJavaScript.

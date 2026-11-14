@@ -31,7 +31,7 @@ export const fetchProductCategories =
         ) {
             url += requestParam(filter, null, null, null, url);
         }
-        apiConfig
+        return apiConfig
             .get(url)
             .then((response) => {
                 dispatch({
@@ -40,20 +40,19 @@ export const fetchProductCategories =
                 });
                 dispatch(
                     setTotalRecord(
-                        response.data.meta.total || response.data.data.total
+                        response.data.meta?.total ?? response.data.data?.total ?? 0
                     )
                 );
-                if (isLoading) {
-                    dispatch(setLoading(false));
-                }
             })
-            .catch(({ response }) => {
+            .catch((error) => {
                 dispatch(
                     addToast({
-                        text: response.data.message,
+                        text: error.response?.data?.message || error.message || "Unable to complete the request.",
                         type: toastType.ERROR,
                     })
                 );
+            }).finally(() => {
+                if (isLoading) dispatch(setLoading(false));
             });
     };
 
@@ -70,10 +69,10 @@ export const fetchProductCategory =
                     payload: response.data.data,
                 });
             })
-            .catch(({ response }) => {
+            .catch((error) => {
                 dispatch(
                     addToast({
-                        text: response.data.message,
+                        text: error.response?.data?.message || error.message || "Unable to complete the request.",
                         type: toastType.ERROR,
                     })
                 );
@@ -97,9 +96,9 @@ export const addProductCategory = (products) => async (dispatch) => {
             );
             dispatch(addInToTotalRecord(1));
         })
-        .catch(({ response }) => {
+        .catch((error) => {
             dispatch(
-                addToast({ text: response.data.message, type: toastType.ERROR })
+                addToast({ text: error.response?.data?.message || error.message || "Unable to complete the request.", type: toastType.ERROR })
             );
         });
 };
@@ -122,10 +121,10 @@ export const editProductCategory =
                     })
                 );
             })
-            .catch(({ response }) => {
+            .catch((error) => {
                 dispatch(
                     addToast({
-                        text: response.data.message,
+                        text: error.response?.data?.message || error.message || "Unable to complete the request.",
                         type: toastType.ERROR,
                     })
                 );
@@ -149,9 +148,9 @@ export const deleteProductCategory = (productId) => async (dispatch) => {
                 })
             );
         })
-        .catch(({ response }) => {
+        .catch((error) => {
             dispatch(
-                addToast({ text: response.data.message, type: toastType.ERROR })
+                addToast({ text: error.response?.data?.message || error.message || "Unable to complete the request.", type: toastType.ERROR })
             );
         });
 };
@@ -165,9 +164,9 @@ export const fetchAllProductCategories = () => async (dispatch) => {
                 payload: response.data.data,
             });
         })
-        .catch(({ response }) => {
+        .catch((error) => {
             dispatch(
-                addToast({ text: response.data.message, type: toastType.ERROR })
+                addToast({ text: error.response?.data?.message || error.message || "Unable to complete the request.", type: toastType.ERROR })
             );
         });
 };
