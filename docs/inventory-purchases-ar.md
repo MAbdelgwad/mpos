@@ -4,7 +4,7 @@
 
 ## التشغيل
 
-اتبع `spring-backend/README.md`. بعد جلب الفرع المحدث أعد البناء من مجلد `spring-backend`:
+اتبع `backend/README.md`. بعد جلب الفرع المحدث أعد البناء من مجلد `backend`:
 
 ```bash
 docker compose up --build -d

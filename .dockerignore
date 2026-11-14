@@ -1,7 +1,7 @@
-node_modules
 .git
-spring-frontend/dist
-spring-backend/target
-.env
-**/.env
+legacy
 **/node_modules
+**/target
+frontend/dist
+**/.env
+.env
