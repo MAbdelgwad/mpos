@@ -1,3 +1,5 @@
+import SpringPurchases from './components/spring/SpringPurchases';
+import SpringInventory from './components/spring/SpringInventory';
 import SpringSettings from './components/spring/SpringSettings';
 import SpringHome from './components/spring/SpringHome';
 import Dashboard from "./components/dashboard/Dashboard";
@@ -90,6 +92,7 @@ import BaseUnits from "./components/base-unit/BaseUnits";
 import RegisterReport from "./components/report/registerReport/RegisterReport";
 
 export const route = [
+    ...(window.MPOS_SPRING ? [{path:"inventory",ele:<SpringInventory/>,permission:"manage_inventory"}] : []),
     {
         path: "dashboard",
         ele: window.MPOS_SPRING ? <SpringHome /> : <Dashboard />,
@@ -267,7 +270,7 @@ export const route = [
     },
     {
         path: "purchases",
-        ele: <Purchases />,
+        ele: window.MPOS_SPRING ? <SpringPurchases /> : <Purchases />,
         permission: Permissions.MANAGE_PURCHASE,
     },
     {

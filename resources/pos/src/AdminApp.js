@@ -16,7 +16,7 @@ function AdminApp(props) {
         const permissions = config;
         let filterRoutes = [];
         route.forEach((route) => {
-            if (window.MPOS_SPRING && (!/^(dashboard|brands|warehouse|product-categories|units|base-units|suppliers|customers|users|products|roles|settings)(\/|$)/.test(route.path) || route.path.startsWith('warehouse/detail/'))) return;
+            if (window.MPOS_SPRING && (!/^(dashboard|brands|warehouse|product-categories|units|base-units|suppliers|customers|users|products|roles|settings|purchases|inventory)(\/|$)/.test(route.path) || route.path.startsWith('warehouse/detail/') || route.path.startsWith('purchases/'))) return;
             if (
                 (permissions && permissions.indexOf(route.permission) !== -1) ||
                 route.permission === ""

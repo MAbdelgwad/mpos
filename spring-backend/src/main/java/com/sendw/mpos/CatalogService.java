@@ -107,6 +107,10 @@ public class CatalogService {
             id=db.queryForObject("INSERT INTO "+s.table()+"("+fields+") VALUES ("+placeholders+") RETURNING id",Long.class,values.values().toArray());
         } else {
             find(s.table(),id);
+            if(kind.equals("products")) {
+                Object oldUnit=db.queryForObject("SELECT product_unit FROM products WHERE id=? FOR UPDATE",Long.class,id);
+                if(!oldUnit.equals(values.get("product_unit")) && db.queryForObject("SELECT count(*) FROM stock_movements WHERE product_id=?",Long.class,id)>0)throw Requests.conflict("A product base unit cannot change after inventory movements exist");
+            }
             if(kind.equals("units")) {
                 long count=db.queryForObject("SELECT count(*) FROM products WHERE (sale_unit=? OR purchase_unit=?) AND product_unit<>?",Long.class,id,id,values.get("base_unit"));
                 if(count>0)throw invalid("Unit is used by products with a different base unit");
@@ -140,7 +144,9 @@ public class CatalogService {
             a.put("images",Map.of("imageUrls",urls,"id",media.stream().map(x->x.get("id").toString()).toList()));
             String barcode=Barcodes.image((String)a.get("code"),((Number)a.get("barcode_symbol")).intValue());
             a.put("barcode_image_url",barcode);a.put("barcode_url",barcode);
-            a.put("in_stock",0);a.put("stock",Map.of("quantity",0));a.put("warehouse",List.of());
+            var balances=db.queryForList("SELECT b.warehouse_id,b.product_id,b.quantity,w.name FROM stock_balances b JOIN warehouses w ON w.id=b.warehouse_id WHERE product_id=? ORDER BY warehouse_id",id);
+            BigDecimal total=balances.stream().map(x->(BigDecimal)x.get("quantity")).reduce(BigDecimal.ZERO,BigDecimal::add);
+            a.put("in_stock",total);a.put("stock",Map.of("quantity",total));a.put("stocks",balances);a.put("warehouse",balances.stream().map(x->Map.of("id",x.get("warehouse_id"),"name",x.get("name"),"total_quantity",x.get("quantity"))).toList());
         }
         return Map.of("type",kind,"id",id,"attributes",a,"links",Map.of("self","/api/"+kind+"/"+id));
     }

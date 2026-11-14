@@ -38,7 +38,7 @@ const assert=require('node:assert/strict');
   await page.locator('.modal').getByRole('button',{name:'Save',exact:true}).click();
   await page.getByText('Browser Brand',{exact:true}).first().waitFor();
   // All migrated screens must load without missing API endpoints or runtime errors.
-  for(const route of ['product-categories','base-units','units','warehouse','suppliers','customers','products','users','roles','settings']){
+  for(const route of ['product-categories','base-units','units','warehouse','suppliers','customers','products','users','roles','settings','purchases','inventory']){
    await page.goto(origin+'/#/app/'+route);
    await page.waitForLoadState('networkidle');
    assert(!page.url().endsWith('/login'),'Unexpected logout at '+route);
@@ -57,7 +57,7 @@ const assert=require('node:assert/strict');
   await page.waitForFunction(()=>document.documentElement.dir==='rtl');
   assert.equal(errors.length,0,'Browser errors: '+errors.join('\n'));
   assert.equal(failures.length,0,'API failures: '+failures.join('\n'));
-  console.log('Browser smoke passed: login, brand/customer creation, 10 screens, Arabic RTL.');
+  console.log('Browser smoke passed: login, brand/customer creation, 12 screens, Arabic RTL.');
  }catch(e){console.error(e);process.exitCode=1;}
  finally{if(browser)await browser.close();server.close();}
 })();

@@ -75,6 +75,7 @@ const prepareRoutes = (config) => {
     const permissions = config;
     let filterRoutes = [];
     asideConfig.forEach((route) => {
+    if (window.MPOS_SPRING && ['/app/adjustments','/app/transfers'].includes(route.to)) return;
     const permissionsRoute = getRouteWithSubMenu(route, permissions)
     if (permissions && permissions.indexOf(route.permission) !== -1 || route.permission === '' || permissionsRoute.newRoute?.length) {
         filterRoutes.push(permissionsRoute)

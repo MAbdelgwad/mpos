@@ -35,7 +35,7 @@ class ApiIntegrationTest {
     static final String WAREHOUSE="""
         {"name":"المخزن الرئيسي","phone":"0501234567","country":"Saudi Arabia","city":"Riyadh","email":"","zip_code":"00123"}
         """;
-    @BeforeEach void clear() { db.update("DELETE FROM access_tokens"); db.update("DELETE FROM warehouses"); db.execute("TRUNCATE products, units, base_units, brands, product_categories, customers, suppliers, media CASCADE"); db.update("DELETE FROM app_users WHERE email<>'admin@example.com'"); db.update("DELETE FROM roles WHERE protected_role=false"); }
+    @BeforeEach void clear() { db.update("DELETE FROM access_tokens"); db.execute("TRUNCATE stock_movements,stock_operations,stock_balances,purchase_items,purchases,request_keys,warehouses,products,units,base_units,brands,product_categories,customers,suppliers,media CASCADE"); db.update("DELETE FROM app_users WHERE email<>'admin@example.com'"); db.update("DELETE FROM roles WHERE protected_role=false"); }
     @AfterAll static void stopDatabase() throws Exception { postgres.close(); }
 
     HttpResponse<String> request(String method,String path,String token,String body) throws Exception {
@@ -196,5 +196,90 @@ class ApiIntegrationTest {
         var unit=http.send(HttpRequest.newBuilder(URI.create("http://localhost:"+port+"/api/units")).header("Authorization","Bearer "+token).header("Content-Type","application/x-www-form-urlencoded").POST(HttpRequest.BodyPublishers.ofString("name=Each&short_name=ea&base_unit="+id)).build(),HttpResponse.BodyHandlers.ofString());
         assertEquals(201,unit.statusCode(),unit.body());
         assertEquals("Piece",JsonPath.read(unit.body(),"$.data.attributes.base_unit_name.name"));
+    }
+    record StockFixture(String token,long warehouse,long target,long supplier,long product,long unit,long base,long brand,long category) {}
+    StockFixture stockFixture() throws Exception {
+        String token=login();long warehouse=create("warehouses",token,WAREHOUSE),target=create("warehouses",token,WAREHOUSE.replace("المخزن الرئيسي","Second warehouse"));
+        long supplier=create("suppliers",token,"{\"name\":\"Supplier\",\"email\":\"supplier@example.com\",\"phone\":\"0501234567\",\"country\":\"SA\",\"city\":\"Riyadh\",\"address\":\"Street\"}");
+        long brand=create("brands",token,"{\"name\":\"Stock brand\"}"),category=create("product-categories",token,"{\"name\":\"Stock category\"}"),base=create("base-units",token,"{\"name\":\"Stock base\"}");
+        long unit=create("units",token,"{\"name\":\"Stock unit\",\"short_name\":\"ea\",\"base_unit\":"+base+"}");
+        long product=create("products",token,product(category,brand,base,unit,"STOCK001"));return new StockFixture(token,warehouse,target,supplier,product,unit,base,brand,category);
+    }
+    String purchase(StockFixture f,int status,int quantity) {
+        return "{\"supplier_id\":"+f.supplier()+",\"warehouse_id\":"+f.warehouse()+",\"date\":\"2026-11-14\",\"status\":"+status+",\"tax_rate\":15,\"discount\":0,\"shipping\":0,\"grand_total\":0,\"purchase_items\":[{\"product_id\":"+f.product()+",\"purchase_unit\":"+f.unit()+",\"product_cost\":115,\"quantity\":"+quantity+",\"tax_type\":2,\"tax_value\":15,\"discount_type\":2,\"discount_value\":0}]}";
+    }
+    HttpRequest keyed(String path,String token,String key,String body){return HttpRequest.newBuilder(URI.create("http://localhost:"+port+path)).timeout(java.time.Duration.ofSeconds(15)).header("Content-Type","application/json").header("Authorization","Bearer "+token).header("Idempotency-Key",key).POST(HttpRequest.BodyPublishers.ofString(body)).build();}
+    HttpResponse<String> postKey(String path,String token,String key,String body)throws Exception{return http.send(keyed(path,token,key,body),HttpResponse.BodyHandlers.ofString());}
+    String opening(StockFixture f,int qty){return "{\"product_id\":"+f.product()+",\"warehouse_id\":"+f.warehouse()+",\"quantity\":"+qty+",\"reason\":\"Opening stock\"}";}
+    String adjustment(StockFixture f,int qty){return "{\"product_id\":"+f.product()+",\"warehouse_id\":"+f.warehouse()+",\"quantity_delta\":"+qty+",\"reason\":\"Physical count\"}";}
+    void assertStock(long warehouse,long product,String expected){assertEquals(new java.math.BigDecimal(expected).setScale(4),db.queryForObject("SELECT quantity FROM stock_balances WHERE warehouse_id=? AND product_id=?",java.math.BigDecimal.class,warehouse,product));}
+    @Test void purchaseDraftReceiveAndCancellationLedger() throws Exception {
+        var f=stockFixture();var created=postKey("/api/purchases",f.token(),"purchase-draft-1",purchase(f,2,2));assertEquals(201,created.statusCode(),created.body());
+        long id=((Number)JsonPath.read(created.body(),"$.data.id")).longValue();
+        assertEquals(264.5,((Number)JsonPath.read(created.body(),"$.data.attributes.grand_total")).doubleValue(),0.00001);
+        assertEquals(0,db.queryForObject("SELECT count(*) FROM stock_movements",Integer.class));
+        var updated=request("PUT","/api/purchases/"+id,f.token(),purchase(f,2,3).replace("\"status\":2","\"status\":2,\"version\":0"));assertEquals(200,updated.statusCode(),updated.body());
+        assertEquals(409,request("PUT","/api/purchases/"+id,f.token(),purchase(f,2,4).replace("\"status\":2","\"status\":2,\"version\":0")).statusCode());
+        assertEquals(200,request("POST","/api/purchases/"+id+"/receive",f.token(),"{}").statusCode());assertStock(f.warehouse(),f.product(),"3");
+        assertEquals(200,request("POST","/api/purchases/"+id+"/receive",f.token(),"{}").statusCode());assertEquals(1,db.queryForObject("SELECT count(*) FROM stock_movements",Integer.class));
+        assertEquals(409,request("PUT","/api/purchases/"+id,f.token(),purchase(f,2,4)).statusCode());
+        assertEquals(200,request("POST","/api/purchases/"+id+"/cancel",f.token(),"{}").statusCode());assertStock(f.warehouse(),f.product(),"0");
+        assertEquals(200,request("POST","/api/purchases/"+id+"/cancel",f.token(),"{}").statusCode());assertEquals(2,db.queryForObject("SELECT count(*) FROM stock_movements",Integer.class));
+        assertEquals(409,request("POST","/api/purchases/"+id+"/receive",f.token(),"{}").statusCode());
+    }
+    @Test void duplicateConcurrentReceiptsPostOnlyOnce() throws Exception {
+        var f=stockFixture();String body=purchase(f,1,5);var req=keyed("/api/purchases",f.token(),"same-receipt-key",body);
+        var a=http.sendAsync(req,HttpResponse.BodyHandlers.ofString());var b=http.sendAsync(req,HttpResponse.BodyHandlers.ofString());
+        var first=a.get(20,java.util.concurrent.TimeUnit.SECONDS);var second=b.get(20,java.util.concurrent.TimeUnit.SECONDS);assertEquals(201,first.statusCode(),first.body());assertEquals(201,second.statusCode(),second.body());
+        assertEquals((Number)JsonPath.read(first.body(),"$.data.id"),(Number)JsonPath.read(second.body(),"$.data.id"));
+        assertStock(f.warehouse(),f.product(),"5");assertEquals(1,db.queryForObject("SELECT count(*) FROM purchases",Integer.class));assertEquals(1,db.queryForObject("SELECT count(*) FROM stock_movements",Integer.class));
+        assertEquals(409,postKey("/api/purchases",f.token(),"same-receipt-key",purchase(f,1,6)).statusCode());
+    }
+    @Test void openingTransfersAndOverdrawRollback() throws Exception {
+        var f=stockFixture();assertEquals(200,postKey("/api/inventory/opening",f.token(),"opening-key-1",opening(f,10)).statusCode());
+        assertEquals(200,postKey("/api/inventory/opening",f.token(),"opening-key-1",opening(f,10)).statusCode());
+        assertEquals(409,postKey("/api/inventory/opening",f.token(),"opening-key-2",opening(f,10)).statusCode());
+        String transfer="{\"product_id\":"+f.product()+",\"from_warehouse_id\":"+f.warehouse()+",\"to_warehouse_id\":"+f.target()+",\"quantity\":3,\"reason\":\"Restock target\"}";
+        assertEquals(200,postKey("/api/inventory/transfers",f.token(),"transfer-key-1",transfer).statusCode());assertStock(f.warehouse(),f.product(),"7");assertStock(f.target(),f.product(),"3");
+        assertEquals(409,postKey("/api/inventory/transfers",f.token(),"transfer-key-2",transfer.replace("\"quantity\":3","\"quantity\":8")).statusCode());
+        assertStock(f.warehouse(),f.product(),"7");assertStock(f.target(),f.product(),"3");assertEquals(2,db.queryForObject("SELECT count(*) FROM stock_operations",Integer.class));
+        assertEquals(0,db.queryForObject("SELECT count(*) FROM stock_balances b WHERE quantity<>(SELECT sum(quantity_delta) FROM stock_movements m WHERE m.warehouse_id=b.warehouse_id AND m.product_id=b.product_id)",Integer.class));
+        assertEquals(200,request("GET","/api/inventory/movements?warehouse_id="+f.warehouse(),f.token(),null).statusCode());
+        assertEquals(10.0,((Number)JsonPath.read(request("GET","/api/products/"+f.product(),f.token(),null).body(),"$.data.attributes.in_stock")).doubleValue(),0.00001);
+    }
+    @Test void concurrentDeductionsCannotMakeStockNegative() throws Exception {
+        var f=stockFixture();postKey("/api/inventory/opening",f.token(),"race-opening",opening(f,10));
+        var a=http.sendAsync(keyed("/api/inventory/adjustments",f.token(),"race-adjust-a",adjustment(f,-7)),HttpResponse.BodyHandlers.ofString());
+        var b=http.sendAsync(keyed("/api/inventory/adjustments",f.token(),"race-adjust-b",adjustment(f,-7)),HttpResponse.BodyHandlers.ofString());
+        var codes=java.util.stream.Stream.of(a.get(20,java.util.concurrent.TimeUnit.SECONDS).statusCode(),b.get(20,java.util.concurrent.TimeUnit.SECONDS).statusCode()).sorted().toList();
+        assertEquals(java.util.List.of(200,409),codes);assertStock(f.warehouse(),f.product(),"3");assertEquals(2,db.queryForObject("SELECT count(*) FROM stock_movements",Integer.class));
+    }
+    @Test void consumedReceiptCannotBeCancelledAndBaseUnitIsLocked() throws Exception {
+        var f=stockFixture();var created=postKey("/api/purchases",f.token(),"receipt-consumed",purchase(f,1,10));long id=((Number)JsonPath.read(created.body(),"$.data.id")).longValue();
+        assertEquals(200,postKey("/api/inventory/adjustments",f.token(),"consume-stock",adjustment(f,-8)).statusCode());
+        assertEquals(409,request("POST","/api/purchases/"+id+"/cancel",f.token(),"{}").statusCode());assertStock(f.warehouse(),f.product(),"2");
+        assertEquals(1,db.queryForObject("SELECT status FROM purchases WHERE id=?",Integer.class,id));assertEquals(2,db.queryForObject("SELECT count(*) FROM stock_movements",Integer.class));
+        long base=create("base-units",f.token(),"{\"name\":\"Another base\"}"),unit=create("units",f.token(),"{\"name\":\"Another unit\",\"short_name\":\"x\",\"base_unit\":"+base+"}");
+        assertEquals(409,request("PUT","/api/products/"+f.product(),f.token(),product(f.category(),f.brand(),base,unit,"STOCK001")).statusCode());
+        db.update("UPDATE app_users SET role='VIEWER' WHERE email='admin@example.com'");
+        try{assertEquals(403,postKey("/api/inventory/opening",f.token(),"denied-opening",opening(f,5)).statusCode());assertEquals(403,request("GET","/api/purchases",f.token(),null).statusCode());}
+        finally{db.update("UPDATE app_users SET role='ADMIN' WHERE email='admin@example.com'");}
+    }
+    @Test void invalidPurchaseRollsBackIdempotencyClaimAndCanRetry() throws Exception {
+        var f=stockFixture();String invalid=purchase(f,1,2).replace("\"quantity\":2","\"quantity\":0");
+        assertEquals(422,postKey("/api/purchases",f.token(),"retry-after-error",invalid).statusCode());
+        assertEquals(0,db.queryForObject("SELECT count(*) FROM purchases",Integer.class));assertEquals(0,db.queryForObject("SELECT count(*) FROM request_keys",Integer.class));
+        assertEquals(201,postKey("/api/purchases",f.token(),"retry-after-error",purchase(f,1,2)).statusCode());
+        assertEquals(422,request("POST","/api/purchases",f.token(),purchase(f,1,2)).statusCode());
+    }
+    @Test void draftBaseUnitChangeMustBeReviewedBeforeReceipt() throws Exception {
+        var f=stockFixture();var created=postKey("/api/purchases",f.token(),"draft-unit-check",purchase(f,2,2));long id=((Number)JsonPath.read(created.body(),"$.data.id")).longValue();
+        long base=create("base-units",f.token(),"{\"name\":\"Changed base\"}"),unit=create("units",f.token(),"{\"name\":\"Changed unit\",\"short_name\":\"new\",\"base_unit\":"+base+"}");
+        assertEquals(200,request("PUT","/api/products/"+f.product(),f.token(),product(f.category(),f.brand(),base,unit,"STOCK001")).statusCode());
+        assertEquals(409,request("POST","/api/purchases/"+id+"/receive",f.token(),"{}").statusCode());
+        assertEquals(0,db.queryForObject("SELECT count(*) FROM stock_movements",Integer.class));
+        String revised=purchase(f,2,2).replace("\"purchase_unit\":"+f.unit(),"\"purchase_unit\":"+unit).replace("\"status\":2","\"status\":2,\"version\":0");
+        assertEquals(200,request("PUT","/api/purchases/"+id,f.token(),revised).statusCode());
+        assertEquals(200,request("POST","/api/purchases/"+id+"/receive",f.token(),"{}").statusCode());assertStock(f.warehouse(),f.product(),"2");
     }
 }
