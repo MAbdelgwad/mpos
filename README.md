@@ -1,64 +1,70 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400"></a></p>
+# MPOS — Modular Spring application
 
-<p align="center">
-<a href="https://travis-ci.org/laravel/framework"><img src="https://travis-ci.org/laravel/framework.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+تطبيق نقاط بيع قيد التحويل إلى Java 21 / Spring Boot وPostgreSQL، مع واجهة React مستقلة. المنجز حاليًا: الهوية والصلاحيات والبيانات الأساسية والمشتريات والمخزون والمبيعات الأساسية وتسجيل تحصيل العملاء وسداد الموردين. POS والمرتجعات والتقارير لم تكتمل.
 
-## About Laravel
+| المجلد | الوظيفة |
+| --- | --- |
+| `frontend/` | React ومصدر الواجهة وإعدادات npm وDockerfile |
+| `backend/` | Spring Boot واختبارات Java وترحيلات Flyway |
+| `infra/` | إعدادات Nginx والبنية التشغيلية |
+| `docs/` | قواعد البزنس والتوثيق المعماري |
+| `scripts/` | التشغيل والفحص والإيقاف |
+| `legacy/laravel/` | مرجع الكود القديم، خارج البناء والتشغيل الجديدين |
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## التشغيل للتجربة
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+من جذر المشروع، بعد تثبيت Docker وCompose v2 وPython 3:
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+```bash
+bash scripts/start.sh
+```
 
-## Learning Laravel
+افتح http://localhost:18181 . يعرض السكربت البريد وكلمة المرور بعد نجاح الفحص. يولّد كلمات مرور محلية ويحفظها في `.env` بصلاحية 600؛ لا ترفع هذا الملف. يستخدم السكربت مشروع Docker مستقلًا `mpos-test-architecture` وقاعدة بيانات جديدة منفصلة عن حزمة المرحلة الثالثة. لا تحتاج Java أو Node محليًا للتشغيل باستخدام Docker. أول تشغيل يحتاج إنترنت لتنزيل الاعتماديات.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+```bash
+bash scripts/verify.sh
+bash scripts/logs.sh
+bash scripts/stop.sh
+python3 scripts/setup.py --show-login
+```
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains over 1500 video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+الإيقاف يحفظ البيانات. `down -v` يحذفها؛ لا تستخدمه لمجرد إعادة التشغيل. يمكن تغيير المنافذ في `.env`. تغيير كلمة مرور Bootstrap في الملف لا يعيد تعيين حساب موجود. إذا غيّرت كلمة المرور في التطبيق، حدّث قيمة `.env` حتى ينجح فحص الدخول.
 
-## Laravel Sponsors
+## التطوير
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the Laravel [Patreon page](https://patreon.com/taylorotwell).
+Java 21 JDK وMaven 3.9+ للخلفية، وNode 22 للواجهة:
 
-### Premium Partners
+```bash
+cd backend
+mvn verify
+```
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Cubet Techno Labs](https://cubettech.com)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[Many](https://www.many.co.uk)**
-- **[Webdock, Fast VPS Hosting](https://www.webdock.io/en)**
-- **[DevSquad](https://devsquad.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[OP.GG](https://op.gg)**
-- **[WebReinvent](https://webreinvent.com/?utm_source=laravel&utm_medium=github&utm_campaign=patreon-sponsors)**
-- **[Lendio](https://lendio.com)**
+ومن جذر المشروع:
 
-## Contributing
+```bash
+cd frontend
+npm ci --legacy-peer-deps --no-audit --no-fund
+npm run build
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+اختبارات التكامل تستخدم PostgreSQL حقيقيًا مؤقتًا، وتحتاج مستخدمًا غير root. ملفات Flyway V1–V3 لم تتغير أثناء إعادة الهيكلة. راجع `docs/architecture-ar.md` للحدود المعمارية وما بقي من تحسينات، و`docs/inventory-purchases-ar.md` لسيناريو اختبار المشتريات والمخزون.
 
-## Code of Conduct
+اختبارات Java وبناء React لا تعني أن Docker أو تجربة المتصفح تحققت؛ تشغيلهما ما زال يحتاج التحقق على جهازك. لا تستخدم هذه النسخة للمبيعات الفعلية.
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+## تحديث حزمة المدفوعات
 
-## Security Vulnerabilities
+راجع `UPGRADE-AR.md`. الحزمة الجديدة تُفك فوق مجلد `mpos-architecture` السابق، ولا تحتوي ملف `.env`؛ يبقى ملفك وبيانات PostgreSQL الحالية. لا تنشئ ملف اعتماد جديدًا لقاعدة موجودة. هذا الإصدار يضيف دفعات جزئية وكاملة للمبيعات والمشتريات، ومنع تكرارها وتجاوز المستحق، وعكس الدفعات مع الاحتفاظ بسجلها. يضيف Flyway V5 دون تعديل V1–V4. راجع `docs/payments-ar.md` للعقود وسيناريو الاختبار. السداد هنا تسجيل لعمليات حدثت خارج التطبيق؛ لا توجد بوابة دفع أو تحويل بنكي فعلي.
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+نجح 47 اختبار Java مع تجاوز اختبار متصفح اختياري واحد (48 إجمالًا)، ونجح بناء React مع تحذيري CSS موجودين سابقًا. نتائج التحقق النهائية في `PACKAGE.json` بالحزمة. اختبار المتصفح اختياري، وتشغيل Docker والقبول التفاعلي لهذه النسخة يحتاجان التحقق على جهازك.
 
-## License
+## تشخيص الأخطاء — حزمة logs
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+تتضمن النسخة الحالية Request ID للطلبات، وسجلات Spring/Nginx محدودة الحجم، وزر تنزيل تقرير JavaScript/React، وسكربت جمع السجلات. راجع `docs/diagnostics-ar.md`.
+
+```bash
+bash scripts/collect-logs.sh --browser ~/Downloads/mpos-browser-diagnostics.json
+```
+
+شُخّصت أخطاء 400 في القوائم وأُصلح ترميز معاملات URL؛ راجع UPGRADE-AR.md. الأخطاء الأخرى، إن ظهرت، تحتاج تقريرًا جديدًا.
+
+إصلاح HTTP 400: عميل Axios يرمّز أقواس معاملات القوائم قبل الإرسال. scripts/verify.sh يفحص الآن المسارات مع pagination، إضافة إلى الفحوص السابقة.
