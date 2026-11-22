@@ -68,3 +68,7 @@ bash scripts/collect-logs.sh --browser ~/Downloads/mpos-browser-diagnostics.json
 شُخّصت أخطاء 400 في القوائم وأُصلح ترميز معاملات URL؛ راجع UPGRADE-AR.md. الأخطاء الأخرى، إن ظهرت، تحتاج تقريرًا جديدًا.
 
 إصلاح HTTP 400: عميل Axios يرمّز أقواس معاملات القوائم قبل الإرسال. scripts/verify.sh يفحص الآن المسارات مع pagination، إضافة إلى الفحوص السابقة.
+
+## بيانات استرشادية جاهزة
+
+شغّل `bash scripts/start-demo.sh` لإضافة 12 منتجًا و4 مشتريات و5 مبيعات و4 دفعات إلى قاعدة التجربة الحالية دون حذف بياناتها. التفاصيل في `demo/README-AR.md`؛ الملصقات القابلة للطباعة في `/images/demo/index.html`.
