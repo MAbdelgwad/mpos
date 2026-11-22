@@ -27,6 +27,12 @@ public class UiService {
             if(key.equals("company_name") && value.isBlank())throw Validation.invalid("Company name is required");
             if(key.equals("default_language") && !Set.of("ar","en").contains(value))throw Validation.invalid("Invalid language");
             if(key.equals("date_format") && !Set.of("d-m-y","m-d-y","y-m-d").contains(value))throw Validation.invalid("Invalid date format");
+            if(key.equals("invoice_paper") && !Set.of("A4","A5","80mm").contains(value))throw Validation.invalid("Invalid invoice paper");
+            if(key.equals("invoice_template") && !Set.of("classic","modern","compact").contains(value))throw Validation.invalid("Invalid invoice template");
+            if(key.equals("invoice_language") && !Set.of("ar","en").contains(value))throw Validation.invalid("Invalid invoice language");
+            if(key.equals("invoice_color") && !value.matches("#[0-9a-fA-F]{6}"))throw Validation.invalid("Invalid invoice color");
+            if(key.equals("invoice_font_size") && !Set.of("10","11","12","13","14","15","16","17","18").contains(value))throw Validation.invalid("Invalid invoice font size");
+            if(key.startsWith("invoice_show_") && !Set.of("true","false").contains(value))throw Validation.invalid("Invalid invoice visibility");
             repository.update(key,value);
         }
         return Map.of("data",settings());

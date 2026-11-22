@@ -41,7 +41,7 @@ public class JdbcPurchaseRepository implements PurchaseRepository {
     @Override public void setStatus(long id,int status) { db.update("UPDATE purchases SET status=?,version=version+1,updated_at=now() WHERE id=?",status,id); }
     @Override public String supplierName(Object id) { return db.queryForObject("SELECT name FROM suppliers WHERE id=?",String.class,id); }
     @Override public String warehouseName(Object id) { return db.queryForObject("SELECT name FROM warehouses WHERE id=?",String.class,id); }
-    @Override public List<Map<String,Object>> lines(Object purchase) { return db.queryForList("SELECT i.*,p.name,p.code FROM purchase_items i JOIN products p ON p.id=i.product_id WHERE purchase_id=? ORDER BY i.id",purchase); }
+    @Override public List<Map<String,Object>> lines(Object purchase) { return db.queryForList("SELECT i.*,p.name,p.code,COALESCE(u.name,b.name) AS unit_name FROM purchase_items i JOIN products p ON p.id=i.product_id LEFT JOIN units u ON u.id=i.purchase_unit LEFT JOIN base_units b ON b.id=i.base_unit WHERE purchase_id=? ORDER BY i.id",purchase); }
     @Override public Page search(String pattern,Integer status,int page,int size) {
         String where=" WHERE ('PUR_'||p.id::text ILIKE ? OR s.name ILIKE ?)";
         var args=new ArrayList<Object>(List.of(pattern,pattern));

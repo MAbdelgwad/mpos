@@ -52,6 +52,34 @@ class ApiIntegrationTest {
         assertFalse(r.body().contains("password_hash"));
         return JsonPath.read(r.body(),"$.data.token");
     }
+    @Test void invoiceMigrationPreservesExistingSettingsAndUnits() {
+        var first=org.flywaydb.core.Flyway.configure().dataSource(postgres.getPostgresDatabase()).schemas("invoice_upgrade_test").defaultSchema("invoice_upgrade_test").target("5").load();
+        first.migrate();
+        try {
+            db.update("UPDATE invoice_upgrade_test.ui_settings SET value='Existing company' WHERE key='company_name'");
+            db.update("INSERT INTO invoice_upgrade_test.base_units(name) VALUES ('Existing base')");
+            db.update("INSERT INTO invoice_upgrade_test.units(name,short_name,base_unit) SELECT 'Existing unit','u',id FROM invoice_upgrade_test.base_units");
+            var latest=org.flywaydb.core.Flyway.configure().dataSource(postgres.getPostgresDatabase()).schemas("invoice_upgrade_test").defaultSchema("invoice_upgrade_test").load();
+            latest.migrate();
+            assertEquals("Existing company",db.queryForObject("SELECT value FROM invoice_upgrade_test.ui_settings WHERE key='company_name'",String.class));
+            assertEquals(1,db.queryForObject("SELECT count(*) FROM invoice_upgrade_test.units",Integer.class));
+            assertEquals(13,db.queryForObject("SELECT count(*) FROM invoice_upgrade_test.ui_settings WHERE key LIKE 'invoice_%'",Integer.class));
+        } finally {db.execute("DROP SCHEMA invoice_upgrade_test CASCADE");}
+    }
+    @Test void invoiceSettingsValidatePersistAndRemainAtomic() throws Exception {
+        String token=login();
+        assertEquals(200,request("PUT","/api/ui-settings",token,"{\"invoice_paper\":\"A5\",\"invoice_template\":\"modern\",\"invoice_language\":\"en\",\"invoice_color\":\"#126a45\",\"invoice_font_size\":\"14\",\"invoice_footer\":\"Invoice test footer\"}").statusCode());
+        var front=request("GET","/api/front-setting",token,null);
+        assertEquals("A5",JsonPath.read(front.body(),"$.data.value.invoice_paper"));
+        assertEquals("Invoice test footer",JsonPath.read(front.body(),"$.data.value.invoice_footer"));
+        for(var bad:Map.of("invoice_paper","A3","invoice_template","html","invoice_language","xx","invoice_color","red;display:none","invoice_font_size","99","invoice_show_code","yes").entrySet()) {
+            assertEquals(422,request("PUT","/api/ui-settings",token,"{\""+bad.getKey()+"\":\""+bad.getValue()+"\"}").statusCode());
+        }
+        assertEquals(422,request("PUT","/api/ui-settings",token,"{\"invoice_footer\":\"must roll back\",\"invoice_paper\":\"invalid\"}").statusCode());
+        assertEquals("Invoice test footer",db.queryForObject("SELECT value FROM ui_settings WHERE key='invoice_footer'",String.class));
+        assertEquals(401,request("PUT","/api/ui-settings",null,"{\"invoice_paper\":\"A4\"}").statusCode());
+        db.update("UPDATE ui_settings SET value='A4' WHERE key='invoice_paper'");
+    }
     @Test void loginRevocationExpiryAndAuthentication() throws Exception {
         assertEquals(200,request("GET","/api/health",null,null).statusCode());
         var denied=request("GET","/api/warehouses",null,null);

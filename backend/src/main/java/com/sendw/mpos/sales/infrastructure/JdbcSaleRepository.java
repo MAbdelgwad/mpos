@@ -41,7 +41,7 @@ public class JdbcSaleRepository implements SaleRepository {
     @Override public void setStatus(long id,int status) { db.update("UPDATE sales SET status=?,version=version+1,updated_at=now() WHERE id=?",status,id); }
     @Override public String customerName(Object id) { return db.queryForObject("SELECT name FROM customers WHERE id=?",String.class,id); }
     @Override public String warehouseName(Object id) { return db.queryForObject("SELECT name FROM warehouses WHERE id=?",String.class,id); }
-    @Override public List<Map<String,Object>> lines(Object sale) { return db.queryForList("SELECT i.*,p.name,p.code FROM sale_items i JOIN products p ON p.id=i.product_id WHERE sale_id=? ORDER BY i.id",sale); }
+    @Override public List<Map<String,Object>> lines(Object sale) { return db.queryForList("SELECT i.*,p.name,p.code,COALESCE(u.name,b.name) AS unit_name FROM sale_items i JOIN products p ON p.id=i.product_id LEFT JOIN units u ON u.id=i.sale_unit LEFT JOIN base_units b ON b.id=i.base_unit WHERE sale_id=? ORDER BY i.id",sale); }
     @Override public Page search(String pattern,Integer status,int page,int size) {
         String where=" WHERE ('SAL_'||p.id::text ILIKE ? OR s.name ILIKE ?)";
         var args=new ArrayList<Object>(List.of(pattern,pattern));
