@@ -15,7 +15,7 @@ public class JdbcPurchaseRepository implements PurchaseRepository {
         if(rows.isEmpty())throw Validation.missing();return rows.getFirst();
     }
     @Override public List<Map<String,Object>> lockProduct(long id) { return db.queryForList("SELECT product_unit FROM products WHERE id=? FOR SHARE",id); }
-    @Override public List<Map<String,Object>> lockUnit(Object id) { return db.queryForList("SELECT base_unit FROM units WHERE id=? FOR SHARE",id); }
+    @Override public List<Map<String,Object>> lockUnit(Object id) { return db.queryForList("SELECT id,name FROM units WHERE id=? FOR SHARE",id); }
     private List<Object> values(Header h) {
         var t=h.totals();
         return new ArrayList<>(Arrays.asList(h.supplier(),h.warehouse(),java.sql.Date.valueOf(h.date()),h.status(),t.get("tax_rate"),t.get("tax_amount"),t.get("discount"),t.get("shipping"),t.get("grand_total"),h.notes()));
@@ -30,18 +30,18 @@ public class JdbcPurchaseRepository implements PurchaseRepository {
         db.update("DELETE FROM purchase_items WHERE purchase_id=?",id);
     }
     @Override public void insertLine(long purchase, Map<String,Object> line) {
-        var columns=List.of("product_id","purchase_unit","product_cost","quantity","discount_type","discount_value","tax_type","tax_value","net_unit_cost","discount_amount","tax_amount","sub_total","base_unit");
+        var columns=List.of("product_id","purchase_unit","product_cost","quantity","discount_type","discount_value","tax_type","tax_value","net_unit_cost","discount_amount","tax_amount","sub_total","stock_unit_id","unit_name_snapshot");
         var args=new ArrayList<Object>();args.add(purchase);columns.forEach(column->args.add(line.get(column)));
         db.update("INSERT INTO purchase_items(purchase_id,"+String.join(",",columns)+") VALUES ("+String.join(",",Collections.nCopies(args.size(),"?"))+")",args.toArray());
     }
     @Override public List<Map<String,Object>> lockLineUnits(long purchase) {
-        return db.queryForList("SELECT i.product_id,i.purchase_unit,i.base_unit,p.product_unit FROM purchase_items i JOIN products p ON p.id=i.product_id WHERE purchase_id=? ORDER BY i.product_id FOR SHARE OF p",purchase);
+        return db.queryForList("SELECT i.product_id,i.purchase_unit,i.stock_unit_id,p.product_unit FROM purchase_items i JOIN products p ON p.id=i.product_id WHERE purchase_id=? ORDER BY i.product_id FOR SHARE OF p",purchase);
     }
     @Override public List<Map<String,Object>> quantities(long purchase) { return db.queryForList("SELECT product_id,quantity FROM purchase_items WHERE purchase_id=? ORDER BY product_id",purchase); }
     @Override public void setStatus(long id,int status) { db.update("UPDATE purchases SET status=?,version=version+1,updated_at=now() WHERE id=?",status,id); }
     @Override public String supplierName(Object id) { return db.queryForObject("SELECT name FROM suppliers WHERE id=?",String.class,id); }
     @Override public String warehouseName(Object id) { return db.queryForObject("SELECT name FROM warehouses WHERE id=?",String.class,id); }
-    @Override public List<Map<String,Object>> lines(Object purchase) { return db.queryForList("SELECT i.*,p.name,p.code,COALESCE(u.name,b.name) AS unit_name FROM purchase_items i JOIN products p ON p.id=i.product_id LEFT JOIN units u ON u.id=i.purchase_unit LEFT JOIN base_units b ON b.id=i.base_unit WHERE purchase_id=? ORDER BY i.id",purchase); }
+    @Override public List<Map<String,Object>> lines(Object purchase) { return db.queryForList("SELECT i.*,p.name,p.code,i.unit_name_snapshot AS unit_name FROM purchase_items i JOIN products p ON p.id=i.product_id WHERE purchase_id=? ORDER BY i.id",purchase); }
     @Override public Page search(String pattern,Integer status,int page,int size) {
         String where=" WHERE ('PUR_'||p.id::text ILIKE ? OR s.name ILIKE ?)";
         var args=new ArrayList<Object>(List.of(pattern,pattern));

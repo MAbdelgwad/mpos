@@ -7,7 +7,6 @@ const labels = {
     warehouses: ['المخازن', 'Warehouses', 'warehouse'],
     brands: ['العلامات التجارية', 'Brands', 'brands'],
     'product-categories': ['التصنيفات', 'Categories', 'product-categories'],
-    'base-units': ['الوحدات الأساسية', 'Base units', 'base-units'],
     units: ['وحدات القياس', 'Units', 'units'],
     customers: ['العملاء', 'Customers', 'customers'],
     suppliers: ['الموردون', 'Suppliers', 'suppliers'],

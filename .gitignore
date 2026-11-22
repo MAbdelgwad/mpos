@@ -9,3 +9,6 @@ frontend/dist/
 /diagnostics/
 
 /.demo-seed.lock
+
+/backups/
+/.units-upgrade.lock

@@ -168,9 +168,9 @@ const ProductForm = ( props ) => {
 
     const handleProductUnitChange = ( obj ) => {
         productUnitDropdown( obj.value );
-        setIsClearDropdown( false );
-        setIsDropdown( false );
-        setProductValue( { ...productValue, product_unit: obj } );
+        setIsClearDropdown( true );
+        setIsDropdown( true );
+        setProductValue( { ...productValue, product_unit: obj, sale_unit: obj, purchase_unit: obj } );
         setErrors( '' );
     };
 
@@ -473,26 +473,6 @@ const ProductForm = ( props ) => {
                                                 onChange={handleProductUnitChange} />
                                             <Button onClick={() => showUnitModel( true )} className='position-absolute model-dtn'><FontAwesomeIcon
                                                 icon={faPlus} /></Button></InputGroup>
-                                    </div>
-                                    <div className='col-md-6 mb-3'>
-                                        <ReactSelect
-                                            className='position-relative'
-                                            title={getFormattedMessage( "product.input.sale-unit.label" )}
-                                            placeholder={placeholderText( 'product.input.sale-unit.placeholder.label' )}
-                                            value={isClearDropdown === false ? '' : productValue.sale_unit}
-                                            data={saleUnitOption}
-                                            errors={errors[ 'sale_unit' ]}
-                                            onChange={handleSaleUnitChange} />
-                                    </div>
-                                    <div className='col-md-6 mb-3'>
-                                        <ReactSelect
-                                            className='position-relative'
-                                            title={getFormattedMessage( "product.input.purchase-unit.label" )}
-                                            placeholder={placeholderText( 'product.input.purchase-unit.placeholder.label' )}
-                                            value={isDropdown === false ? '' : productValue.purchase_unit}
-                                            data={saleUnitOption}
-                                            errors={errors[ 'purchase_unit' ]}
-                                            onChange={handlePurchaseUnitChange} />
                                     </div>
                                     <div className='col-md-6 mb-3'>
                                         <label

@@ -9,7 +9,6 @@ public interface CatalogRepository {
     void update(Spec spec,long id,Map<String,Object> values);
     long lockProductUnit(long id);
     boolean hasMovements(long product);
-    boolean unitUsedWithOtherBase(long unit,Object base);
     int delete(Spec spec,long id);
     long productCount(String kind,Object id);
     List<Map<String,Object>> balances(Object product);

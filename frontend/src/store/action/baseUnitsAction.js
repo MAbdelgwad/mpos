@@ -162,7 +162,7 @@ export const deleteBaseUnit = (unitId) => async (dispatch) => {
 
 export const fetchAllBaseUnits = () => async (dispatch) => {
     apiConfig
-        .get(`base-units?page[size]=0`)
+        .get(`units?page[size]=0`)
         .then((response) => {
             dispatch({
                 type: baseUnitsActionType.FETCH_ALL_BASE_UNITS,

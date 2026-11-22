@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartHttpServletRequest;
 
 @RestController
-@RequestMapping("/api/{kind:brands|product-categories|base-units|units|customers|suppliers|products}")
+@RequestMapping("/api/{kind:brands|product-categories|units|customers|suppliers|products}")
 public class CatalogController {
     private final CatalogService catalog;
     private final com.sendw.mpos.catalog.application.CatalogWriteService writes;

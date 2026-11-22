@@ -36,8 +36,13 @@ public class SaleService {
         for(var line:lines){long product=(long)line.get("product_id");if(!seen.add(product))throw Validation.invalid("Duplicate product in sale");
             // Hold product/unit rows while completing so their unit meaning cannot change concurrently.
             var products=repository.lockProduct(product);if(products.isEmpty())throw Validation.invalid("Unknown product");
-            line.put("base_unit",products.getFirst().get("product_unit"));
-            if(line.get("sale_unit")!=null){var units=repository.lockUnit(line.get("sale_unit"));if(units.isEmpty() || !units.getFirst().get("base_unit").equals(products.getFirst().get("product_unit")))throw Validation.invalid("Sale unit does not belong to product base unit");}}
+            line.put("stock_unit_id",products.getFirst().get("product_unit"));
+            if(line.get("sale_unit")!=null && !line.get("sale_unit").equals(products.getFirst().get("product_unit")))throw Validation.invalid("Use the product unit");
+            line.put("sale_unit",products.getFirst().get("product_unit"));
+            var units=repository.lockUnit(line.get("sale_unit"));
+            if(units.isEmpty())throw Validation.invalid("Unknown unit");
+            line.put("unit_name_snapshot",units.getFirst().get("name"));
+        }
         var totals=SaleMath.totals(body,lines);
         var header=new SaleRepository.Header(customer,warehouse,date,status,totals,notes,identity.current().id());
         if(id==null)id=repository.insert(header);else repository.replaceHeader(id,header);
@@ -48,10 +53,8 @@ public class SaleService {
     private void post(long id,long warehouse,String kind,BigDecimal sign){
         var units=repository.lockLineUnits(id);
         for(var item:units){
-            if(!item.get("base_unit").equals(item.get("product_unit")))throw Requests.conflict("Product base unit changed; update the draft before completion");
-            if(item.get("sale_unit")==null)continue;
-            var rows=repository.lockUnit(item.get("sale_unit"));
-            if(rows.isEmpty()||!rows.getFirst().get("base_unit").equals(item.get("product_unit")))throw Requests.conflict("Product units changed; update the draft before completion");
+            if(!item.get("stock_unit_id").equals(item.get("product_unit")))throw Requests.conflict("Product unit changed; update the draft before completion");
+
         }
         var deltas=repository.quantities(id).stream().map(row->new StockOperations.Delta(warehouse,((Number)row.get("product_id")).longValue(),((BigDecimal)row.get("quantity")).multiply(sign))).toList();
         stock.applySale(kind,id,kind+" SAL_"+id,deltas);

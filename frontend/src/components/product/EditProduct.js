@@ -9,13 +9,13 @@ import { productUnitDropdown } from '../../store/action/productUnitAction';
 import { fetchAllunits } from '../../store/action/unitsAction';
 import { getFormattedMessage } from '../../shared/sharedMethod';
 import TopProgressBar from "../../shared/components/loaders/TopProgressBar";
-import { fetchAllBaseUnits } from "../../store/action/baseUnitsAction";
+import { fetchUnitChoices } from "../../store/action/unitChoicesAction";
 
 const EditProduct = ( props ) => {
-    const { fetchProduct, products, fetchAllBaseUnits, base } = props;
+    const { fetchProduct, products, fetchUnitChoices, base } = props;
     const { id } = useParams();
     useEffect( () => {
-        fetchAllBaseUnits();
+        fetchUnitChoices();
         fetchProduct( id );
     }, [] );
     const getSaleUnit = products.length >= 1 && products[ 0 ]?.attributes.sale_unit_name ? { label: products[ 0 ]?.attributes.sale_unit_name.name, value: products[ 0 ]?.attributes.sale_unit_name.id } : ''
@@ -53,7 +53,7 @@ const EditProduct = ( props ) => {
         <MasterLayout>
             <TopProgressBar />
             <HeaderTitle title={getFormattedMessage( 'product.edit.title' )} to='/app/products' />
-            {itemsValue.length >= 1 && <ProductForm singleProduct={itemsValue} productUnit={getProductUnit} baseUnits={base} id={id} />}
+            {itemsValue.length >= 1 && getProductUnit.length >= 1 && <ProductForm singleProduct={itemsValue} productUnit={getProductUnit} baseUnits={base} id={id} />}
         </MasterLayout>
     )
 };
@@ -63,5 +63,5 @@ const mapStateToProps = ( state ) => {
     return { products, base }
 };
 
-export default connect( mapStateToProps, { fetchProduct, fetchAllBaseUnits, productUnitDropdown, fetchAllunits } )( EditProduct );
+export default connect( mapStateToProps, { fetchProduct, fetchUnitChoices, productUnitDropdown, fetchAllunits } )( EditProduct );
 

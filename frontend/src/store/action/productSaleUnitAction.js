@@ -3,7 +3,7 @@ import apiConfig from '../../config/apiConfig';
 import {addToast} from './toastAction';
 
 export const productSalesDropdown = (base_sale_value) => async (dispatch) => {
-    apiConfig.get(`units?filter[base_unit]=${base_sale_value}`)
+    apiConfig.get(`units?page[size]=0`)
         .then((response) => {
             dispatch({type: saleActionType.PRODUCT_SALES_UNIT, payload: response.data.data});
         })

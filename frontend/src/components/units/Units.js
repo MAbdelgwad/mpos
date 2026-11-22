@@ -40,7 +40,6 @@ const Units = (props) => {
                 time: moment(unit.attributes.created_at).format('LT'),
                 name: unit.attributes.name,
                 short_name: unit.attributes.short_name,
-                base_unit: unit.attributes.base_unit_name?.name ? unit.attributes.base_unit_name?.name : 'N/A',
                 id: unit.id
             }
         )
@@ -61,19 +60,6 @@ const Units = (props) => {
                 return <span className='badge bg-light-info'>
                             <span>{row.short_name}</span>
                         </span>
-            }
-        },
-        {
-            name: getFormattedMessage('unit.modal.input.base-unit.label'),
-            sortField: 'base_unit',
-            sortable: true,
-            cell: row => {
-                return (
-                    row.base_unit  &&
-                    <span className='badge bg-light-success'>
-                        <span>{row.base_unit}</span>
-                    </span>
-                )
             }
         },
         {
@@ -106,8 +92,8 @@ const Units = (props) => {
             <TopProgressBar />
             <TabTitle title={placeholderText('units.title')}/>
             <ReactDataTable columns={columns} items={itemsValue} onChange={onChange} isLoading={isLoading}
-                            AddButton={<CreateUnits/>} title={getFormattedMessage('unit.modal.input.base-unit.label')}
-                            totalRows={totalRecord} isShowFilterField isUnitFilter/>
+                            AddButton={<CreateUnits/>}
+                            totalRows={totalRecord}/>
             <EditUnits handleClose={handleClose} show={editModel} unit={unit}/>
             <DeleteUnits onClickDeleteModel={onClickDeleteModel} deleteModel={deleteModel}
                          onDelete={isDelete}/>

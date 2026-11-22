@@ -37,7 +37,7 @@ class ApiIntegrationTest {
     static final String WAREHOUSE="""
         {"name":"المخزن الرئيسي","phone":"0501234567","country":"Saudi Arabia","city":"Riyadh","email":"","zip_code":"00123"}
         """;
-    @BeforeEach void clear() { db.update("DELETE FROM access_tokens"); db.execute("TRUNCATE document_payments,sale_items,sales,stock_movements,stock_operations,stock_balances,purchase_items,purchases,request_keys,warehouses,products,units,base_units,brands,product_categories,customers,suppliers,media CASCADE"); db.update("DELETE FROM app_users WHERE email<>'admin@example.com'"); db.update("DELETE FROM roles WHERE protected_role=false"); }
+    @BeforeEach void clear() { db.update("DELETE FROM access_tokens"); db.execute("TRUNCATE document_payments,sale_items,sales,stock_movements,stock_operations,stock_balances,purchase_items,purchases,request_keys,warehouses,products,units,brands,product_categories,customers,suppliers,media CASCADE"); db.update("DELETE FROM app_users WHERE email<>'admin@example.com'"); db.update("DELETE FROM roles WHERE protected_role=false"); }
     @AfterAll static void stopDatabase() throws Exception { postgres.close(); }
 
     HttpResponse<String> request(String method,String path,String token,String body) throws Exception {
@@ -52,6 +52,44 @@ class ApiIntegrationTest {
         assertFalse(r.body().contains("password_hash"));
         return JsonPath.read(r.body(),"$.data.token");
     }
+    @Test void unitMigrationPreservesMoneyStockAndHistoricalLabels() throws Exception {
+        String schema="units_upgrade_test";
+        org.flywaydb.core.Flyway.configure().dataSource(postgres.getPostgresDatabase()).schemas(schema).defaultSchema(schema).target("6").load().migrate();
+        try {
+            db.execute(java.nio.file.Files.readString(java.nio.file.Path.of("src/test/resources/unit-upgrade-fixture.sql")).replace("__SCHEMA__",schema));
+            var stock=db.queryForList("SELECT * FROM units_upgrade_test.stock_movements ORDER BY id");
+            var balances=db.queryForList("SELECT * FROM units_upgrade_test.stock_balances");
+            var payments=db.queryForList("SELECT * FROM units_upgrade_test.document_payments");
+            var sales=db.queryForList("SELECT * FROM units_upgrade_test.sales");
+            var purchases=db.queryForList("SELECT * FROM units_upgrade_test.purchases ORDER BY id");
+            var flyway=org.flywaydb.core.Flyway.configure().dataSource(postgres.getPostgresDatabase()).schemas(schema).defaultSchema(schema).load();flyway.migrate();
+            assertNull(db.queryForObject("SELECT to_regclass('units_upgrade_test.base_units')",String.class));
+            assertEquals(stock,db.queryForList("SELECT * FROM units_upgrade_test.stock_movements ORDER BY id"));
+            assertEquals(balances,db.queryForList("SELECT * FROM units_upgrade_test.stock_balances"));
+            assertEquals(payments,db.queryForList("SELECT * FROM units_upgrade_test.document_payments"));
+            assertEquals(sales,db.queryForList("SELECT * FROM units_upgrade_test.sales"));
+            assertEquals(purchases,db.queryForList("SELECT * FROM units_upgrade_test.purchases ORDER BY id"));
+            assertEquals(10,db.queryForObject("SELECT product_unit FROM units_upgrade_test.products WHERE id=1",Integer.class));
+            assertEquals(10,db.queryForObject("SELECT sale_unit FROM units_upgrade_test.products WHERE id=1",Integer.class));
+            assertEquals(11,db.queryForObject("SELECT sale_unit FROM units_upgrade_test.sale_items WHERE sale_id=1",Integer.class));
+            assertEquals("Each",db.queryForObject("SELECT unit_name_snapshot FROM units_upgrade_test.sale_items WHERE sale_id=1",String.class));
+            assertEquals("Weight",db.queryForObject("SELECT unit_name_snapshot FROM units_upgrade_test.purchase_items WHERE purchase_id=2",String.class));
+            assertEquals(7,db.queryForObject("SELECT count(*) FROM units_upgrade_test.units",Integer.class));
+            assertEquals(0,db.queryForObject("SELECT count(*) FROM units_upgrade_test.products WHERE product_unit<>sale_unit OR product_unit<>purchase_unit",Integer.class));
+            assertEquals(0,flyway.migrate().migrationsExecuted);
+        } finally {db.execute("DROP SCHEMA units_upgrade_test CASCADE");}
+    }
+    @Test void singleUnitDefaultsAndInvoiceUnitSnapshot() throws Exception {
+        var f=stockFixture();
+        var body=product(f.category(),f.brand(),f.unit(),f.unit(),"DEFAULT-UNIT").replace(",\"sale_unit\":"+f.unit(),"").replace(",\"purchase_unit\":"+f.unit(),"");
+        long id=create("products",f.token(),body);
+        assertEquals(f.unit(),db.queryForObject("SELECT sale_unit FROM products WHERE id=?",Long.class,id));
+        assertEquals(404,request("GET","/api/base-units",f.token(),null).statusCode());
+        assertEquals(409,request("DELETE","/api/units/"+f.unit(),f.token(),null).statusCode());
+        long receipt=((Number)JsonPath.read(postKey("/api/purchases",f.token(),"snapshot",purchase(f,1,2)).body(),"$.data.id")).longValue();
+        assertEquals(200,request("PUT","/api/units/"+f.unit(),f.token(),"{\"name\":\"Renamed unit\",\"short_name\":\"r\"}").statusCode());
+        assertEquals("Stock unit",JsonPath.read(request("GET","/api/purchases/"+receipt,f.token(),null).body(),"$.data.attributes.purchase_items[0].unit_name"));
+    }
     @Test void invoiceMigrationPreservesExistingSettingsAndUnits() {
         var first=org.flywaydb.core.Flyway.configure().dataSource(postgres.getPostgresDatabase()).schemas("invoice_upgrade_test").defaultSchema("invoice_upgrade_test").target("5").load();
         first.migrate();
@@ -59,7 +97,7 @@ class ApiIntegrationTest {
             db.update("UPDATE invoice_upgrade_test.ui_settings SET value='Existing company' WHERE key='company_name'");
             db.update("INSERT INTO invoice_upgrade_test.base_units(name) VALUES ('Existing base')");
             db.update("INSERT INTO invoice_upgrade_test.units(name,short_name,base_unit) SELECT 'Existing unit','u',id FROM invoice_upgrade_test.base_units");
-            var latest=org.flywaydb.core.Flyway.configure().dataSource(postgres.getPostgresDatabase()).schemas("invoice_upgrade_test").defaultSchema("invoice_upgrade_test").load();
+            var latest=org.flywaydb.core.Flyway.configure().dataSource(postgres.getPostgresDatabase()).schemas("invoice_upgrade_test").defaultSchema("invoice_upgrade_test").target("6").load();
             latest.migrate();
             assertEquals("Existing company",db.queryForObject("SELECT value FROM invoice_upgrade_test.ui_settings WHERE key='company_name'",String.class));
             assertEquals(1,db.queryForObject("SELECT count(*) FROM invoice_upgrade_test.units",Integer.class));
@@ -143,8 +181,8 @@ class ApiIntegrationTest {
         return "{\"name\":\"منتج تجريبي\",\"code\":\""+code+"\",\"product_category_id\":"+category+",\"brand_id\":"+brand+",\"product_cost\":12.3456,\"product_price\":20.50,\"product_unit\":"+base+",\"sale_unit\":"+unit+",\"purchase_unit\":"+unit+",\"barcode_symbol\":1,\"tax_type\":1,\"order_tax\":15}";
     }
     @Test void catalogRelationsPrecisionAndDeletionProtection() throws Exception {
-        String t=login();long brand=create("brands",t,"{\"name\":\"Brand\"}"),category=create("product-categories",t,"{\"name\":\"Category\"}"),base=create("base-units",t,"{\"name\":\"Piece\"}");
-        long unit=create("units",t,"{\"name\":\"Each\",\"short_name\":\"ea\",\"base_unit\":"+base+"}");
+        String t=login();long brand=create("brands",t,"{\"name\":\"Brand\"}"),category=create("product-categories",t,"{\"name\":\"Category\"}"),base=create("units",t,"{\"name\":\"Piece\",\"short_name\":\"pc\"}");
+        long unit=base;
         String body=product(category,brand,base,unit,"SKU001");long id=create("products",t,body);
         assertEquals(new java.math.BigDecimal("12.3456"),db.queryForObject("SELECT product_cost FROM products WHERE id=?",java.math.BigDecimal.class,id));
         var shown=request("GET","/api/products/"+id,t,null);assertEquals("Brand",JsonPath.read(shown.body(),"$.data.attributes.brand_name"));
@@ -153,7 +191,7 @@ class ApiIntegrationTest {
         assertEquals(409,request("POST","/api/products",t,body).statusCode());
         assertEquals(422,request("POST","/api/products",t,body.replace("SKU001","BAD").replace("12.3456","-1")).statusCode());
         assertEquals(422,request("POST","/api/products",t,body.replace("SKU001","BAD").replace("12.3456","1.12345")).statusCode());
-        long other=create("base-units",t,"{\"name\":\"Weight\"}");
+        long other=create("units",t,"{\"name\":\"Weight\",\"short_name\":\"kg\"}");
         assertEquals(422,request("POST","/api/products",t,product(category,brand,other,unit,"BAD")).statusCode());
         assertEquals(422,request("PUT","/api/units/"+unit,t,"{\"name\":\"Each\",\"short_name\":\"ea\",\"base_unit\":"+other+"}").statusCode());
         assertEquals(200,request("DELETE","/api/products/"+id,t,null).statusCode());
@@ -223,11 +261,9 @@ class ApiIntegrationTest {
     }
     @Test void urlEncodedUnitFormsMatchReact() throws Exception {
         String token=login();
-        var base=http.send(HttpRequest.newBuilder(URI.create("http://localhost:"+port+"/api/base-units")).header("Authorization","Bearer "+token).header("Content-Type","application/x-www-form-urlencoded").POST(HttpRequest.BodyPublishers.ofString("name=Piece")).build(),HttpResponse.BodyHandlers.ofString());
-        assertEquals(201,base.statusCode(),base.body());Number id=JsonPath.read(base.body(),"$.data.id");
-        var unit=http.send(HttpRequest.newBuilder(URI.create("http://localhost:"+port+"/api/units")).header("Authorization","Bearer "+token).header("Content-Type","application/x-www-form-urlencoded").POST(HttpRequest.BodyPublishers.ofString("name=Each&short_name=ea&base_unit="+id)).build(),HttpResponse.BodyHandlers.ofString());
+        var unit=http.send(HttpRequest.newBuilder(URI.create("http://localhost:"+port+"/api/units")).header("Authorization","Bearer "+token).header("Content-Type","application/x-www-form-urlencoded").POST(HttpRequest.BodyPublishers.ofString("name=Each&short_name=ea")).build(),HttpResponse.BodyHandlers.ofString());
         assertEquals(201,unit.statusCode(),unit.body());
-        assertEquals("Piece",JsonPath.read(unit.body(),"$.data.attributes.base_unit_name.name"));
+        assertEquals("Each",JsonPath.read(unit.body(),"$.data.attributes.name"));
     }
     @Test void passwordChangeDtoRevokesEverySessionAndPreservesPublicLoginContract() throws Exception {
         String admin=login();
@@ -285,8 +321,8 @@ class ApiIntegrationTest {
     StockFixture stockFixture() throws Exception {
         String token=login();long warehouse=create("warehouses",token,WAREHOUSE),target=create("warehouses",token,WAREHOUSE.replace("المخزن الرئيسي","Second warehouse"));
         long supplier=create("suppliers",token,"{\"name\":\"Supplier\",\"email\":\"supplier@example.com\",\"phone\":\"0501234567\",\"country\":\"SA\",\"city\":\"Riyadh\",\"address\":\"Street\"}");
-        long brand=create("brands",token,"{\"name\":\"Stock brand\"}"),category=create("product-categories",token,"{\"name\":\"Stock category\"}"),base=create("base-units",token,"{\"name\":\"Stock base\"}");
-        long unit=create("units",token,"{\"name\":\"Stock unit\",\"short_name\":\"ea\",\"base_unit\":"+base+"}");
+        long brand=create("brands",token,"{\"name\":\"Stock brand\"}"),category=create("product-categories",token,"{\"name\":\"Stock category\"}"),base=create("units",token,"{\"name\":\"Stock unit\",\"short_name\":\"ea\"}");
+        long unit=base;
         long product=create("products",token,product(category,brand,base,unit,"STOCK001"));return new StockFixture(token,warehouse,target,supplier,product,unit,base,brand,category);
     }
     String purchase(StockFixture f,int status,int quantity) {
@@ -343,7 +379,7 @@ class ApiIntegrationTest {
         assertEquals(200,postKey("/api/inventory/adjustments",f.token(),"consume-stock",adjustment(f,-8)).statusCode());
         assertEquals(409,request("POST","/api/purchases/"+id+"/cancel",f.token(),"{}").statusCode());assertStock(f.warehouse(),f.product(),"2");
         assertEquals(1,db.queryForObject("SELECT status FROM purchases WHERE id=?",Integer.class,id));assertEquals(2,db.queryForObject("SELECT count(*) FROM stock_movements",Integer.class));
-        long base=create("base-units",f.token(),"{\"name\":\"Another base\"}"),unit=create("units",f.token(),"{\"name\":\"Another unit\",\"short_name\":\"x\",\"base_unit\":"+base+"}");
+        long base=create("units",f.token(),"{\"name\":\"Another unit\",\"short_name\":\"u\"}"),unit=base;
         assertEquals(409,request("PUT","/api/products/"+f.product(),f.token(),product(f.category(),f.brand(),base,unit,"STOCK001")).statusCode());
         db.update("UPDATE app_users SET role='VIEWER' WHERE email='admin@example.com'");
         try{assertEquals(403,postKey("/api/inventory/opening",f.token(),"denied-opening",opening(f,5)).statusCode());assertEquals(403,request("GET","/api/purchases",f.token(),null).statusCode());}
@@ -358,7 +394,7 @@ class ApiIntegrationTest {
     }
     @Test void draftBaseUnitChangeMustBeReviewedBeforeReceipt() throws Exception {
         var f=stockFixture();var created=postKey("/api/purchases",f.token(),"draft-unit-check",purchase(f,2,2));long id=((Number)JsonPath.read(created.body(),"$.data.id")).longValue();
-        long base=create("base-units",f.token(),"{\"name\":\"Changed base\"}"),unit=create("units",f.token(),"{\"name\":\"Changed unit\",\"short_name\":\"new\",\"base_unit\":"+base+"}");
+        long base=create("units",f.token(),"{\"name\":\"Changed unit\",\"short_name\":\"u\"}"),unit=base;
         assertEquals(200,request("PUT","/api/products/"+f.product(),f.token(),product(f.category(),f.brand(),base,unit,"STOCK001")).statusCode());
         assertEquals(409,request("POST","/api/purchases/"+id+"/receive",f.token(),"{}").statusCode());
         assertEquals(0,db.queryForObject("SELECT count(*) FROM stock_movements",Integer.class));
@@ -556,10 +592,10 @@ class ApiIntegrationTest {
     }
     @Test void encodedBrowserListParametersReachAllControllers() throws Exception {
         String token=login();
-        for(String resource:java.util.List.of("base-units","units","product-categories","brands","products","warehouses","suppliers","customers","users","roles","purchases","sales")) {
+        for(String resource:java.util.List.of("units","product-categories","brands","products","warehouses","suppliers","customers","users","roles","purchases","sales")) {
             var response=request("GET","/api/"+resource+"?sort=-created_at&page%5Bsize%5D=10&page%5Bnumber%5D=1",token,null);
             assertEquals(200,response.statusCode(),resource+": "+response.body());
         }
-        assertEquals(200,request("GET","/api/base-units?page%5Bsize%5D=0",token,null).statusCode());
+        assertEquals(200,request("GET","/api/units?page%5Bsize%5D=0",token,null).statusCode());
     }
 }

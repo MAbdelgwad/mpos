@@ -6,14 +6,14 @@ import {addProduct} from '../../store/action/productAction';
 import ProductForm from './ProductForm';
 import HeaderTitle from '../header/HeaderTitle';
 import {getFormattedMessage} from '../../shared/sharedMethod';
-import {fetchAllBaseUnits} from "../../store/action/baseUnitsAction";
+import {fetchUnitChoices} from "../../store/action/unitChoicesAction";
 
 const CreateProduct = (props) => {
-    const {addProduct,fetchAllBaseUnits,base} = props;
+    const {addProduct,fetchUnitChoices,base} = props;
     const navigate = useNavigate();
 
     useEffect(() => {
-        fetchAllBaseUnits();
+        fetchUnitChoices();
     }, []);
 
     const addProductData = (formValue) => {
@@ -33,4 +33,4 @@ const mapStateToProps = (state) => {
     return {base}
 };
 
-export default connect(mapStateToProps, {addProduct,fetchAllBaseUnits})(CreateProduct);
+export default connect(mapStateToProps, {addProduct,fetchUnitChoices})(CreateProduct);

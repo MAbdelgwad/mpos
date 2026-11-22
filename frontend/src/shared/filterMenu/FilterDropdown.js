@@ -6,7 +6,7 @@ import { getFormattedMessage, getFormattedOptions } from '../sharedMethod';
 import { faFilter } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { baseUnitOptions, paymentStatusOptions, paymentTypeOptions, statusOptions, transferStatusOptions } from "../../constants";
-import { fetchAllBaseUnits } from "../../store/action/baseUnitsAction";
+import { fetchUnitChoices } from "../../store/action/unitChoicesAction";
 
 const FilterDropdown = ( props ) => {
     const {
@@ -31,7 +31,7 @@ const FilterDropdown = ( props ) => {
         isTransferStatus,
         onTransferStatusChange,
         transferStatus,
-        fetchAllBaseUnits,
+        fetchUnitChoices,
         base
     } = props;
 
@@ -39,14 +39,14 @@ const FilterDropdown = ( props ) => {
     const isReset = useSelector( ( state ) => state.resetOption );
     const isShow = useSelector( ( state ) => state.dropDownToggle );
     const menuRef = useRef( null );
-    const baseUnitFilterOptions = getFormattedOptions( baseUnitOptions )
+    const baseUnitFilterOptions = []
     const statusFilterOptions = getFormattedOptions( statusOptions )
     const paymentFilterOptions = getFormattedOptions( paymentStatusOptions )
     const paymentTypeFilterOptions = getFormattedOptions( paymentTypeOptions )
 
     useEffect( () => {
-        fetchAllBaseUnits()
-    }, [ fetchAllBaseUnits ] )
+        fetchUnitChoices()
+    }, [ fetchUnitChoices ] )
 
     const transferStatusFilterOptions = getFormattedOptions( transferStatusOptions )
 
@@ -214,4 +214,4 @@ const mapStateToProps = ( state ) => {
     return { base }
 };
 
-export default connect( mapStateToProps, { fetchAllBaseUnits } )( FilterDropdown );
+export default connect( mapStateToProps, { fetchUnitChoices } )( FilterDropdown );

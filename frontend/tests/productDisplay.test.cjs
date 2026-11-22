@@ -56,6 +56,7 @@ function renderRoute(initialEntry, permissions) {
         './constants': {Tokens: {ADMIN: 'token'}}, './shared/sharedMethod': {ProtectedRoute: ({children}) => children},
         './routes': {route: [
             {path: 'print/barcode', ele: React.createElement('span', null, 'BARCODE_PAGE'), permission: 'manage_products'},
+            {path: 'base-units', ele: React.createElement('span', null, 'BASE_UNITS_PAGE'), permission: 'manage_units'},
             {path: 'pos', ele: React.createElement('span', null, 'POS_PAGE'), permission: 'manage_pos'}
         ]}, './shared/components/loaders/TopProgressBar': empty,
         'react-redux': {useSelector: () => ({allConfigData: {version: 'test'}})}
@@ -69,4 +70,8 @@ test('Spring barcode route is reachable with product permission', () => {
 test('barcode permission and unsupported Spring routes remain restricted', () => {
     assert.doesNotMatch(renderRoute('/print/barcode', []), /BARCODE_PAGE/);
     assert.doesNotMatch(renderRoute('/pos', ['manage_pos']), /POS_PAGE/);
+});
+
+test('removed base-unit screen cannot be opened in Spring mode', () => {
+    assert.doesNotMatch(renderRoute('/base-units', ['manage_units']), /BASE_UNITS_PAGE/);
 });

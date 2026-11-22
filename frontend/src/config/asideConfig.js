@@ -61,7 +61,6 @@ export default [
             categoriesSubPath: "/app/product-categories",
             brandsSubPath: "/app/brands",
             unitsSubPath: "/app/units",
-            baseUnitsSubPath: "/app/base-units",
             barcodeSubPath: "/app/print/barcode",
         },
         subMenu: [
@@ -95,14 +94,6 @@ export default [
                 name: "units",
                 fontIcon: <FontAwesomeIcon icon={faQuoteRight} />,
                 to: "/app/units",
-                class: "d-flex",
-                permission: Permissions.MANAGE_UNITS,
-            },
-            {
-                title: "base-units.title",
-                name: "base units",
-                fontIcon: <FontAwesomeIcon icon={faRulerHorizontal} />,
-                to: "/app/base-units",
                 class: "d-flex",
                 permission: Permissions.MANAGE_UNITS,
             },

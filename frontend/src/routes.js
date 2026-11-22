@@ -89,7 +89,6 @@ import SmsApi from "./components/sms-api/SmsApi";
 import EditSaleReturnFromSale from "./components/saleReturn/EditSaleReturnFromSale";
 import Language from "./components/languages/Language";
 import EditLanguageData from "./components/languages/EditLanguageData";
-import BaseUnits from "./components/base-unit/BaseUnits";
 import RegisterReport from "./components/report/registerReport/RegisterReport";
 
 export const route = [
@@ -137,11 +136,6 @@ export const route = [
     {
         path: "units",
         ele: <Units />,
-        permission: Permissions.MANAGE_UNITS,
-    },
-    {
-        path: "base-units",
-        ele: <BaseUnits />,
         permission: Permissions.MANAGE_UNITS,
     },
     {

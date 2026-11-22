@@ -43,7 +43,7 @@ public class CatalogService {
         String search=query.getOrDefault("filter[search]","");if(search.length()>255) throw invalid("Search too long");
         String pattern="%"+search.replace("\\","\\\\").replace("%","\\%").replace("_","\\_")+"%";
         var filters=new LinkedHashMap<String,Long>();
-        for(String f:List.of("base_unit","brand_id","product_category_id","product_unit")) {
+        for(String f:List.of("brand_id","product_category_id","product_unit")) {
             String value=query.getOrDefault("filter["+f+"]",query.get(f));
             if(value!=null&&!value.isBlank()&&s.fields().contains(f))filters.put(f,positiveId(value));
         }
@@ -59,16 +59,18 @@ public class CatalogService {
 
     Map<String,Object> validate(String kind,Map<String,Object> body) {
         Spec s=SPECS.get(kind);Map<String,Object> out=new LinkedHashMap<>();
+        if(body.containsKey("base_unit"))throw invalid("Base units have been removed; reload the application");
         if(body.containsKey("purchase_quantity") && !String.valueOf(body.get("purchase_quantity")).isBlank()) throw invalid("Opening stock must be entered through the inventory workflow");
         for(String field:s.fields()) {
             Object value=body.get(field);String text=value==null?"":value.toString().trim();
             if(s.required().contains(field) && text.isEmpty()) throw invalid(field+" is required");
             Object normalized=text.isEmpty()?null:text;
             if(text.length()> (Set.of("notes","description","address").contains(field)?10000:255)) throw invalid(field+" is too long");
+            if(field.equals("short_name") && text.length()>50)throw invalid("Abbreviation is too long");
             if(field.equals("email") && !text.matches("[^\\s@]+@[^\\s@]+\\.[^\\s@]+")) throw invalid("Invalid email");
             if(field.equals("email")) normalized=text.toLowerCase(Locale.ROOT);
             if(field.equals("phone") && !text.matches("[0-9+() -]{1,40}")) throw invalid("Invalid phone");
-            if(!text.isEmpty() && Set.of("base_unit","product_category_id","brand_id","product_unit","sale_unit","purchase_unit").contains(field)) normalized=positiveId(text);
+            if(!text.isEmpty() && Set.of("product_category_id","brand_id","product_unit","sale_unit","purchase_unit").contains(field)) normalized=positiveId(text);
             if(Set.of("product_cost","product_price","stock_alert","quantity_limit","order_tax").contains(field)) {
                 try {
                     BigDecimal number=text.isEmpty()? (field.equals("quantity_limit")?null:BigDecimal.ZERO):new BigDecimal(text);
@@ -84,9 +86,10 @@ public class CatalogService {
         }
         if(kind.equals("products")) {
             barcodes.image((String)out.get("code"),(Integer)out.get("barcode_symbol"));
-            for(String f:List.of("sale_unit","purchase_unit")) if(out.get(f)!=null) {
-                var unit=find("units",((Number)out.get(f)).longValue());
-                if(!unit.get("base_unit").equals(out.get("product_unit")))throw invalid(f+" must belong to the product base unit");
+            find("units",((Number)out.get("product_unit")).longValue());
+            for(String field:List.of("sale_unit","purchase_unit")) {
+                if(out.get(field)!=null && !out.get(field).equals(out.get("product_unit")))throw invalid("Use the product unit for sales and purchases");
+                out.put(field,out.get("product_unit"));
             }
         }
         return out;
@@ -100,10 +103,7 @@ public class CatalogService {
             find(s.table(),id);
             if(kind.equals("products")) {
                 Object oldUnit=repository.lockProductUnit(id);
-                if(!oldUnit.equals(values.get("product_unit")) && repository.hasMovements(id))throw Requests.conflict("A product base unit cannot change after inventory movements exist");
-            }
-            if(kind.equals("units")) {
-                if(repository.unitUsedWithOtherBase(id,values.get("base_unit")))throw invalid("Unit is used by products with a different base unit");
+                if(!oldUnit.equals(values.get("product_unit")) && repository.hasMovements(id))throw Requests.conflict("A product unit cannot change after inventory movements exist");
             }
             repository.update(s,id,values);
         }
@@ -117,7 +117,6 @@ public class CatalogService {
     Map<String,Object> resource(String kind,Map<String,Object> row) {
         var a=new LinkedHashMap<>(row);Object id=a.remove("id");
         a.replaceAll((key,value)->value instanceof Timestamp t?t.toInstant().toString():value instanceof java.sql.Date d?d.toString():value);
-        if(kind.equals("units"))a.put("base_unit_name",find("base_units",((Number)a.get("base_unit")).longValue()));
         var media=images.references(kind,((Number)id).longValue());
         List<String> urls=media.stream().map(x->"/api/media/"+x).toList();
         if(kind.equals("brands") || kind.equals("product-categories")) {
@@ -127,7 +126,7 @@ public class CatalogService {
         if(kind.equals("products")) {
             a.put("product_category_name",find("product_categories",((Number)a.get("product_category_id")).longValue()).get("name"));
             a.put("brand_name",find("brands",((Number)a.get("brand_id")).longValue()).get("name"));
-            a.put("product_unit_name",find("base_units",((Number)a.get("product_unit")).longValue()));
+            a.put("product_unit_name",find("units",((Number)a.get("product_unit")).longValue()));
             for(String f:List.of("sale_unit","purchase_unit"))a.put(f+"_name",a.get(f)==null?"":find("units",((Number)a.get(f)).longValue()));
             a.put("images",Map.of("imageUrls",urls,"id",media.stream().map(Object::toString).toList()));
             String barcode=barcodes.image((String)a.get("code"),((Number)a.get("barcode_symbol")).intValue());

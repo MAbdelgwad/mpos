@@ -35,8 +35,13 @@ public class PurchaseService {
         for(var line:lines){long product=(long)line.get("product_id");if(!seen.add(product))throw Validation.invalid("Duplicate product in purchase");
             // Hold product/unit rows while receiving so their unit meaning cannot change concurrently.
             var products=repository.lockProduct(product);if(products.isEmpty())throw Validation.invalid("Unknown product");
-            line.put("base_unit",products.getFirst().get("product_unit"));
-            if(line.get("purchase_unit")!=null){var units=repository.lockUnit(line.get("purchase_unit"));if(units.isEmpty() || !units.getFirst().get("base_unit").equals(products.getFirst().get("product_unit")))throw Validation.invalid("Purchase unit does not belong to product base unit");}}
+            line.put("stock_unit_id",products.getFirst().get("product_unit"));
+            if(line.get("purchase_unit")!=null && !line.get("purchase_unit").equals(products.getFirst().get("product_unit")))throw Validation.invalid("Use the product unit");
+            line.put("purchase_unit",products.getFirst().get("product_unit"));
+            var units=repository.lockUnit(line.get("purchase_unit"));
+            if(units.isEmpty())throw Validation.invalid("Unknown unit");
+            line.put("unit_name_snapshot",units.getFirst().get("name"));
+        }
         var totals=PurchaseMath.totals(body,lines);
         var header=new PurchaseRepository.Header(supplier,warehouse,date,status,totals,notes,identity.current().id());
         if(id==null)id=repository.insert(header);else repository.replaceHeader(id,header);
@@ -47,10 +52,8 @@ public class PurchaseService {
     private void post(long id,long warehouse,String kind,BigDecimal sign){
         var units=repository.lockLineUnits(id);
         for(var item:units){
-            if(!item.get("base_unit").equals(item.get("product_unit")))throw Requests.conflict("Product base unit changed; update the draft before receiving");
-            if(item.get("purchase_unit")==null)continue;
-            var rows=repository.lockUnit(item.get("purchase_unit"));
-            if(rows.isEmpty()||!rows.getFirst().get("base_unit").equals(item.get("product_unit")))throw Requests.conflict("Product units changed; update the draft before receiving");
+            if(!item.get("stock_unit_id").equals(item.get("product_unit")))throw Requests.conflict("Product unit changed; update the draft before receiving");
+
         }
         var deltas=repository.quantities(id).stream().map(row->new StockOperations.Delta(warehouse,((Number)row.get("product_id")).longValue(),((BigDecimal)row.get("quantity")).multiply(sign))).toList();
         stock.apply(kind,id,kind+" PUR_"+id,deltas);

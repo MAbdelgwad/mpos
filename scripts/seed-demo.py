@@ -55,8 +55,7 @@ class Seeder:
         for resource in ('brands','product-categories'):
             names=DATA['brands' if resource=='brands' else 'categories']
             ids[resource]=[self.ensure(resource,{'name':PREFIX+n}) for n in names]
-        bases=[self.ensure('base-units',{'name':PREFIX+u['name']}) for u in DATA['units']]
-        ids['units']=[self.ensure('units',{'name':PREFIX+u['name'],'short_name':'D-'+u['short_name'],'base_unit':bases[i]}) for i,u in enumerate(DATA['units'])]
+        ids['units']=[self.ensure('units',{'name':PREFIX+u['name'],'short_name':'D-'+u['short_name']}) for i,u in enumerate(DATA['units'])]
         ids['warehouses']=[self.ensure('warehouses',{'name':PREFIX+n,'phone':'0000000000','country':'Saudi Arabia','city':'Riyadh' if i==0 else 'Jeddah'}) for i,n in enumerate(DATA['warehouses'])]
         for resource in ('customers','suppliers'):
             ids[resource]=[self.ensure(resource,{'name':PREFIX+n,'email':f'mpos-demo-{resource}-{i+1}@example.com','phone':'0000000000','country':'Saudi Arabia','city':'Riyadh','address':'عنوان افتراضي للاختبار فقط'},'email') for i,n in enumerate(DATA[resource])]
@@ -64,7 +63,7 @@ class Seeder:
         for p in DATA['products']:
             ids['products'].append(self.ensure('products',{'name':PREFIX+p['name'],'code':p['code'],
                 'product_category_id':ids['product-categories'][p['category']], 'brand_id':ids['brands'][p['brand']],
-                'product_cost':p['cost'],'product_price':p['price'],'product_unit':bases[p['unit']],
+                'product_cost':p['cost'],'product_price':p['price'],'product_unit':ids['units'][p['unit']],
                 'sale_unit':ids['units'][p['unit']],'purchase_unit':ids['units'][p['unit']],
                 'stock_alert':5,'barcode_symbol':1,'tax_type':1,'order_tax':15,
                 'notes':'بيانات استرشادية - QR وباركود: /images/demo/index.html'},'code'))
