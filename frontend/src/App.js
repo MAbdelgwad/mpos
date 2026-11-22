@@ -1,3 +1,5 @@
+import PublicInvoice from './features/invoices/PublicInvoice';
+import VerifyEmail from './features/identity/VerifyEmail';
 import {languageSelection} from './locales/selection';
 import React, { useEffect, useState } from "react";
 import { Route, useLocation, Navigate, Routes } from "react-router-dom";
@@ -78,7 +80,7 @@ function App() {
     }, [location.pathname, activeLanguage]);
 
     useEffect(() => {
-        if (token) {
+        if (token && !/^\/(shared-invoice|verify-email)\//.test(location.pathname)) {
             dispatch(fetchConfig());
             dispatch(fetchFrontSetting());
         }
@@ -107,6 +109,8 @@ function App() {
                 messages={window.MPOS_SPRING ? springLanguage.messages : messages}
             >
                 <Routes>
+                    <Route path="/shared-invoice/:token" element={<PublicInvoice/>}/>
+                    <Route path="/verify-email/:token" element={<VerifyEmail/>}/>
                     <Route path="/login" element={<Login />} />
                     <Route
                         path="reset-password/:token/:email"

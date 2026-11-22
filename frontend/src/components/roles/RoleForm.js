@@ -1,3 +1,5 @@
+import {Tokens} from '../../constants';
+import {permissionLabel} from './permissionLabels';
 import React, {useEffect, useState} from 'react';
 import {Form} from 'react-bootstrap-v5';
 import {connect} from 'react-redux';
@@ -8,6 +10,7 @@ import {getFormattedMessage, placeholderText} from "../../shared/sharedMethod";
 const RoleForm = (props) => {
     const {addRolesData, singleRole, editRole, permissionsArray, id} = props;
     const navigate = useNavigate();
+    const ar=localStorage.getItem(Tokens.UPDATED_LANGUAGE)==='ar';
     const [permissions, setNewPer] = useState(permissionsArray);
     const [saveButtonEnable, setSaveButtonEnable] = useState('')
     const [allChecked, setAllChecked] = useState( false)
@@ -46,7 +49,7 @@ const RoleForm = (props) => {
         } else if ((rolesValue['name'] && rolesValue['name'].length > 50)) {
             errorss['name'] = getFormattedMessage("role.input.name.valid.validate.label");
         } else if (!saveButtonEnable) {
-            errorss['permissions'] = 'Please select permissions';
+            errorss['permissions'] = ar?'يرجى اختيار الصلاحيات':'Please select permissions';
         } else {
             isValid = true;
         }
@@ -60,7 +63,7 @@ const RoleForm = (props) => {
         if (!rolesValue['name']) {
             errorss['name'] = getFormattedMessage("globally.input.name.label");
         } else if(!rolesValue['permissions']) {
-            errorss['permissions'] = 'Please select permissions';
+            errorss['permissions'] = ar?'يرجى اختيار الصلاحيات':'Please select permissions';
         } else {
             isValid = true;
         }
@@ -150,7 +153,7 @@ const RoleForm = (props) => {
                                     {
                                         permissions && permissions.map((permission, index) => {
                                             return (
-                                                <div className="col-md-4">
+                                                <div className="col-md-4" key={permission.id}>
                                                     <label
                                                         className='form-check form-check-custom form-check-solid form-check-inline d-flex align-items-center my-3 cursor-pointer custom-label'
                                                         key={index}>
@@ -160,7 +163,7 @@ const RoleForm = (props) => {
                                                                onChange={(event) => handleChanged(event, index)}
                                                                className='me-3 form-check-input cursor-pointer'/>
                                                         <div className='control__indicator'/>
-                                                        {permission.name}
+                                                        {permissionLabel(permission.code,permission.name,ar)}
                                                     </label>
                                                 </div>
                                             )

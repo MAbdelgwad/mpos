@@ -23,6 +23,7 @@ public class UiService {
         Permissions.require("manage_setting");var allowed=settings().keySet();
         for(var entry:body.entrySet()) {
             String key=entry.getKey(),value=entry.getValue();
+            if(key.equals("currency_code")&&!Set.of("","USD","SAR","EGP").contains(value))throw Validation.invalid("Unsupported currency");
             if(!allowed.contains(key) || value==null || value.length()>500)throw Validation.invalid("Invalid setting");
             if(key.equals("company_name") && value.isBlank())throw Validation.invalid("Company name is required");
             if(key.equals("default_language") && !Set.of("ar","en").contains(value))throw Validation.invalid("Invalid language");
@@ -35,6 +36,7 @@ public class UiService {
             if(key.startsWith("invoice_show_") && !Set.of("true","false").contains(value))throw Validation.invalid("Invalid invoice visibility");
             repository.update(key,value);
         }
+        String code=settings().getOrDefault("currency_code","");if(!code.isBlank())repository.update("currency_symbol",Map.of("USD","$","SAR","ر.س","EGP","ج.م").get(code));
         return Map.of("data",settings());
     }
      public Map<String,Object> config(){

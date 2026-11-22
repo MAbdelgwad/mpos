@@ -23,3 +23,10 @@ if '--show-login' in sys.argv:
     print('Email: ' + values['MPOS_ADMIN_EMAIL'])
     print('Initial password: ' + values['MPOS_ADMIN_PASSWORD'])
     print('If you changed the password in the app, use your updated password.')
+
+if '--show-login' not in sys.argv and not any(line.startswith('MPOS_MAIL_KEY=') and line.split('=',1)[1].strip() for line in env.read_text().splitlines()):
+    import base64
+    env.write_text('\n'.join(line for line in env.read_text().splitlines() if not line.startswith('MPOS_MAIL_KEY='))+'\n')
+    with env.open('a') as out:
+        out.write('\nMPOS_MAIL_KEY=' + base64.b64encode(secrets.token_bytes(32)).decode() + '\n')
+    os.chmod(env, 0o600)

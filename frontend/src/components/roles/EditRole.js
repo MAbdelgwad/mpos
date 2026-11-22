@@ -34,7 +34,7 @@ const EditRole = (props) => {
             }
             permissionArray.push({
                 id: permission.id,
-                name: permission.attributes.display_name,
+                code: permission.attributes.name, name: permission.attributes.display_name,
                 selected,
                 isChecked: selected
             })

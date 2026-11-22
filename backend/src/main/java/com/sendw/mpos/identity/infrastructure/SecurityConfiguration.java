@@ -26,7 +26,7 @@ public class SecurityConfiguration {
             .requestCache(c -> c.disable())
             .authorizeHttpRequests(a -> a
                 .requestMatchers(HttpMethod.GET, "/api/health", "/api/front-setting", "/api/media/**").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/login").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/login", "/api/public/verify-email", "/api/public/invoices/view").permitAll()
                 .requestMatchers("/api/warehouses", "/api/warehouses/**").hasAuthority("manage_warehouses")
                 .anyRequest().authenticated())
             .exceptionHandling(e -> e

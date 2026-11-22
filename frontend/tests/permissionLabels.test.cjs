@@ -1,0 +1,3 @@
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const code=fs.readFileSync(require('node:path').join(__dirname,'../src/components/roles/permissionLabels.js'),'utf8').replace('export function','function')+'\nthis.label=permissionLabel;';const ctx={};vm.runInNewContext(code,ctx);
+test('role permissions have Arabic labels without changing their keys',()=>{for(const key of ['manage_users','manage_roles','manage_sale','manage_purchase','manage_setting','manage_units']){assert.match(ctx.label(key,'English',true),/[\u0600-\u06ff]/);assert.equal(ctx.label(key,'English',false),'English');}assert.equal(ctx.label('future_permission','Future',true),'Future');});

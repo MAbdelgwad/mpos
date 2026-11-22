@@ -1,3 +1,4 @@
+import InvoiceShareButton from './InvoiceShareButton';
 import React,{useState,useRef,useEffect} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 import api from '../../config/apiConfig';
@@ -23,7 +24,7 @@ export default function InvoicePrintButton({type,id,previewDocument,previewSetti
         finally{if(mounted.current)setBusy(false);}
     }
     function print(){try{frame.current.contentWindow.focus();frame.current.contentWindow.print();}catch(e){setError(t('تعذر فتح نافذة الطباعة. أعد المعاينة وحاول مجددًا.','Unable to open print dialog. Preview again and retry.'));}}
-    return <span><button type="button" className="btn btn-outline-primary m-1" disabled={busy} onClick={preview}>{busy?t('جارٍ التحميل','Loading'):t('معاينة / طباعة الفاتورة','Preview / print invoice')}</button>
+    return <span>{!previewDocument&&<InvoiceShareButton type={type} id={id}/>}<button type="button" className="btn btn-outline-primary m-1" disabled={busy} onClick={preview}>{busy?t('جارٍ التحميل','Loading'):t('معاينة / طباعة الفاتورة','Preview / print invoice')}</button>
         {error&&<span className="text-danger" role="alert">{error}</span>}
         {html&&<div role="dialog" aria-modal="true" aria-label={t('معاينة الفاتورة','Invoice preview')} style={{position:'fixed',inset:0,zIndex:2000,background:'#eef1f5',padding:16,display:'flex',flexDirection:'column'}}>
             <div><button type="button" className="btn btn-primary m-1" disabled={!ready} onClick={print}>{t('طباعة / حفظ PDF','Print / save PDF')}</button><button type="button" className="btn btn-secondary m-1" onClick={()=>{setHtml('');setReady(false);}}>{t('إغلاق','Close')}</button>

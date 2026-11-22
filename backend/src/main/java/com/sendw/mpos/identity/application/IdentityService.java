@@ -47,6 +47,7 @@ public class IdentityService implements ApplicationRunner {
         boolean matches = password.getBytes(StandardCharsets.UTF_8).length <= 72 && encoder.matches(password, hash);
         if (!matches || users.isEmpty()) throw new ResponseStatusException(UNAUTHORIZED, "Invalid email or password");
         var user = users.getFirst();
+        if(Boolean.FALSE.equals(user.get("email_verified")))throw new ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN,"Please verify your email first. Ask your administrator to resend the confirmation link.");
         byte[] bytes = new byte[32]; random.nextBytes(bytes);
         String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
         repository.removeExpiredTokens();

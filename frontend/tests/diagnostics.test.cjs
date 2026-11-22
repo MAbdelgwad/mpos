@@ -27,3 +27,5 @@ test('text diagnostics redact common credentials and strip stack URL query value
     for(const secret of ['my-secret','user@example.com','private-value','first-line-secret','stack-secret']) assert(!text.includes(secret));
     assert(text.includes('/js/app.js'));
 });
+
+test('shared invoice and verification tokens are redacted from page paths',()=>{for(const route of ['shared-invoice','verify-email']){global.window.location.hash='#/'+route+'/secret-link-token';const row=d.recordDiagnostic({kind:'ERROR'});assert(!JSON.stringify(row).includes('secret-link-token'));assert(!JSON.stringify(d.report()).includes('secret-link-token'));}});

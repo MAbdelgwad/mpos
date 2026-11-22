@@ -30,7 +30,7 @@ const amount = value => value === null || value === undefined ? '—' : String(v
 export default function InvoiceDocument({document: doc, type, settings = {}}) {
     const a = doc.attributes, o = invoiceOptions(settings), ar = o.language === 'ar', t = (a,e) => ar ? a : e;
     const sales = type === 'sales', lines = a[sales ? 'sale_items' : 'purchase_items'] || [];
-    const money = value => <span className="number">{amount(value)} {settings.currency_symbol || ''}</span>;
+    const money = value => <span className="number">{amount(value)} {a.currency_symbol !== undefined ? a.currency_symbol : (settings.currency_symbol || '')}</span>;
     const state = Number(a.status), status = ({1:sales?t('مكتمل','Completed'):t('مستلم','Received'),2:t('معلق — غير مرحّل','Pending — not posted'),3:t('طلب — غير مرحّل','Order — not posted'),4:t('ملغى','Cancelled')})[state] || t('غير معروف','Unknown');
     return <article className={`invoice ${o.template}`} dir={ar?'rtl':'ltr'} lang={o.language}>
         <header><h1>{settings.company_name || 'MPOS'}</h1><h2>{sales?t('فاتورة مبيعات','Sales invoice'):t('مستند مشتريات','Purchase document')}</h2>

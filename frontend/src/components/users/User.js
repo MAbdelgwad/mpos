@@ -1,3 +1,5 @@
+import api from '../../config/apiConfig';
+import {Tokens} from '../../constants';
 import React, {useState} from 'react';
 import {connect} from 'react-redux';
 import {Link} from 'react-router-dom';
@@ -15,6 +17,9 @@ import TopProgressBar from "../../shared/components/loaders/TopProgressBar";
 
 const User = (props) => {
     const {users, fetchUsers, totalRecord, isLoading, allConfigData} = props;
+    const ar=localStorage.getItem(Tokens.UPDATED_LANGUAGE)==='ar';
+    const [message,setMessage]=useState(''),[sending,setSending]=useState(false);
+    async function resend(id){setSending(true);try{await api.post(`users/${id}/verification`);setMessage(ar?'تم إرسال رابط التأكيد':'Verification link sent');}catch(e){setMessage(e.response?.data?.message||'Request failed');}finally{setSending(false);}}
     const [deleteModel, setDeleteModel] = useState(false);
     const [isDelete, setIsDelete] = useState(null);
 
@@ -30,6 +35,7 @@ const User = (props) => {
         first_name: user.attributes.first_name,
         last_name: user.attributes.last_name,
         email: user.attributes.email,
+        email_verified:user.attributes.email_verified,
         phone: user.attributes.phone,
         password: user.attributes.password,
         confirm_password: user.attributes.confirm_password,
@@ -48,6 +54,7 @@ const User = (props) => {
     };
 
     const columns = [
+        {name:ar?"تأكيد البريد":"Email verification",cell:row=>row.email_verified!==false?<span>{ar?"مؤكد":"Verified"}</span>:<button className="btn btn-sm btn-outline-primary" disabled={sending} onClick={()=>resend(row.id)}>{ar?"غير مؤكد — إعادة الإرسال":"Unverified — resend"}</button>},
         {
             name: getFormattedMessage('users.table.user.column.title'),
             selector: row => row.first_name,
@@ -120,7 +127,7 @@ const User = (props) => {
 
     return (
         <MasterLayout>
-            <TopProgressBar />
+            <TopProgressBar /><p role="status">{message}</p>
             <TabTitle title={placeholderText('users.title')}/>
             <ReactDataTable columns={columns} items={itemsValue} onChange={onChange}
                             ButtonValue={getFormattedMessage('user.create.title')}

@@ -14,8 +14,9 @@ import com.sendw.mpos.media.application.UploadedImage;
 @org.springframework.stereotype.Service
 public class AccessService {
     private final AccessRepository repository;private final IdentityService identity;private final MediaService media;
+    private final VerificationService verification;
     private final BCryptPasswordEncoder encoder=new BCryptPasswordEncoder(12);
-    public AccessService(AccessRepository repository,IdentityService identity,MediaService media){this.repository=repository;this.identity=identity;this.media=media;}
+    public AccessService(AccessRepository repository,IdentityService identity,MediaService media,VerificationService verification){this.verification=verification;this.repository=repository;this.identity=identity;this.media=media;}
     void admin(){Permissions.require("manage_users");}
     static String text(Map<String,Object> b,String key,int max,boolean required){
         String value=Objects.toString(b.get(key),"").trim();if((required && value.isEmpty()) || value.length()>max)throw Validation.invalid("Invalid "+key);return value;
@@ -69,7 +70,7 @@ public class AccessService {
     void password(String password){if(password.length()<12 || password.getBytes(StandardCharsets.UTF_8).length>72)throw Validation.invalid("Password must contain at least 12 characters and at most 72 UTF-8 bytes");}
     @Transactional
     Map<String,Object> saveUser(Long id,Map<String,Object> b){
-        admin();String first=text(b,"first_name",100,true),last=text(b,"last_name",100,false),email=text(b,"email",254,true).toLowerCase(Locale.ROOT),phone=text(b,"phone",40,false);
+        admin();boolean created=id==null;String previousEmail=created?null:(String)repository.user(id).stream().findFirst().orElseThrow(Validation::missing).get("email");String first=text(b,"first_name",100,true),last=text(b,"last_name",100,false),email=text(b,"email",254,true).toLowerCase(Locale.ROOT),phone=text(b,"phone",40,false);
         if(!email.matches("[^\\s@]+@[^\\s@]+\\.[^\\s@]+"))throw Validation.invalid("Invalid email");
         long roleId=Validation.positiveId(b.get("role_id"));var roles=repository.roleNames(roleId);
         if(roles.isEmpty())throw Validation.invalid("Unknown role");String role=roles.getFirst();
@@ -83,6 +84,7 @@ public class AccessService {
             if(!pwd.isEmpty()){repository.setPassword(id,encoder.encode(pwd));repository.revokeUserTokens(id);}
             if(!enabled)repository.revokeUserTokens(id);
         }
+        if(created||!email.equals(previousEmail))verification.newAccount(id);
         return Map.of("data",user(id));
     }
 

@@ -13,7 +13,7 @@ function sanitizeText(value, limit = 320) {
         .replace(/[\r\n\t]+/g, ' ').slice(0, limit);
 }
 function safePath(value) {
-    try { return new URL(String(value || ''), 'http://mpos.local/').pathname.slice(0, 240); }
+    try { return new URL(String(value || ''), 'http://mpos.local/').pathname.replace(/(\/(?:shared-invoice|verify-email)\/)[^/]+/g, '$1[REDACTED]').slice(0, 240); }
     catch (_) { return '[invalid path]'; }
 }
 function safeStack(value) {

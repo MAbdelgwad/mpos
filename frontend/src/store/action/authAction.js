@@ -31,7 +31,7 @@ export const loginAction = (user, navigate, setLoading) => async (dispatch) => {
             }
         })
         .catch(({response}) => {
-            dispatch(addToast({text: response.data.message, type: toastType.ERROR}));
+            dispatch(addToast({text: response?.data?.message || "تعذر إتمام الطلب / Request failed", type: toastType.ERROR}));
             setLoading(false);
         });
 };
@@ -53,7 +53,7 @@ export const logoutAction = (token, navigate) => async (dispatch) => {
             dispatch(addToast({text: getFormattedMessage('logout.success.message')}));
         })
         .catch(({response}) => {
-            dispatch(addToast({text: response.data.message, type: toastType.ERROR}));
+            dispatch(addToast({text: response?.data?.message || "تعذر إتمام الطلب / Request failed", type: toastType.ERROR}));
         });
 };
 
@@ -64,7 +64,7 @@ export const forgotPassword = (user) => async (dispatch) => {
     }).catch(({response}) => {
         dispatch({type: toastType.ERROR, payload: response.data.message});
         dispatch(
-            addToast({text: response.data.message, type: toastType.ERROR}));
+            addToast({text: response?.data?.message || "تعذر إتمام الطلب / Request failed", type: toastType.ERROR}));
     });
 };
 
@@ -76,7 +76,7 @@ export const resetPassword = (user, navigate) => async (dispatch) => {
         navigate('/login');
     }).catch(({response}) => {
         dispatch(
-            addToast({text: response.data.message, type: toastType.ERROR}))
+            addToast({text: response?.data?.message || "تعذر إتمام الطلب / Request failed", type: toastType.ERROR}))
     });
 };
 

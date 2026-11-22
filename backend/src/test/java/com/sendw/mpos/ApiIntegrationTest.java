@@ -31,13 +31,14 @@ class ApiIntegrationTest {
         p.add("mpos.bootstrap-email", () -> "admin@example.com");
         p.add("mpos.bootstrap-password", () -> "test-only-long-password");
     }
+    @org.springframework.test.context.bean.override.mockito.MockitoBean com.sendw.mpos.messaging.application.MailTransport mailTransport;
     @LocalServerPort int port;
     @Autowired JdbcTemplate db;
     final HttpClient http=HttpClient.newHttpClient();
     static final String WAREHOUSE="""
         {"name":"المخزن الرئيسي","phone":"0501234567","country":"Saudi Arabia","city":"Riyadh","email":"","zip_code":"00123"}
         """;
-    @BeforeEach void clear() { db.update("DELETE FROM access_tokens"); db.execute("TRUNCATE document_payments,sale_items,sales,stock_movements,stock_operations,stock_balances,purchase_items,purchases,request_keys,warehouses,products,units,brands,product_categories,customers,suppliers,media CASCADE"); db.update("DELETE FROM app_users WHERE email<>'admin@example.com'"); db.update("DELETE FROM roles WHERE protected_role=false"); }
+    @BeforeEach void clear() { db.update("UPDATE mail_settings SET enabled=false,verify_new_users=false,public_url='',secret=''");db.update("DELETE FROM invoice_shares"); db.update("UPDATE ui_settings SET value='' WHERE key IN ('currency_code','currency_symbol')"); db.update("DELETE FROM access_tokens"); db.execute("TRUNCATE document_payments,sale_items,sales,stock_movements,stock_operations,stock_balances,purchase_items,purchases,request_keys,warehouses,products,units,brands,product_categories,customers,suppliers,media CASCADE"); db.update("DELETE FROM app_users WHERE email<>'admin@example.com'"); db.update("DELETE FROM roles WHERE protected_role=false"); }
     @AfterAll static void stopDatabase() throws Exception { postgres.close(); }
 
     HttpResponse<String> request(String method,String path,String token,String body) throws Exception {
@@ -62,7 +63,7 @@ class ApiIntegrationTest {
             var payments=db.queryForList("SELECT * FROM units_upgrade_test.document_payments");
             var sales=db.queryForList("SELECT * FROM units_upgrade_test.sales");
             var purchases=db.queryForList("SELECT * FROM units_upgrade_test.purchases ORDER BY id");
-            var flyway=org.flywaydb.core.Flyway.configure().dataSource(postgres.getPostgresDatabase()).schemas(schema).defaultSchema(schema).load();flyway.migrate();
+            var flyway=org.flywaydb.core.Flyway.configure().dataSource(postgres.getPostgresDatabase()).schemas(schema).defaultSchema(schema).target("7").load();flyway.migrate();
             assertNull(db.queryForObject("SELECT to_regclass('units_upgrade_test.base_units')",String.class));
             assertEquals(stock,db.queryForList("SELECT * FROM units_upgrade_test.stock_movements ORDER BY id"));
             assertEquals(balances,db.queryForList("SELECT * FROM units_upgrade_test.stock_balances"));
@@ -78,6 +79,61 @@ class ApiIntegrationTest {
             assertEquals(0,db.queryForObject("SELECT count(*) FROM units_upgrade_test.products WHERE product_unit<>sale_unit OR product_unit<>purchase_unit",Integer.class));
             assertEquals(0,flyway.migrate().migrationsExecuted);
         } finally {db.execute("DROP SCHEMA units_upgrade_test CASCADE");}
+    }
+    @Test void currencySnapshotAndRevocableShares() throws Exception {
+        var f=stockFixture();
+        assertEquals(200,request("PUT","/api/ui-settings",f.token(),"{\"currency_code\":\"USD\"}").statusCode());
+        long id=((Number)JsonPath.read(postKey("/api/purchases",f.token(),"share-receipt",purchase(f,2,2)).body(),"$.data.id")).longValue();
+        assertEquals(200,request("PUT","/api/ui-settings",f.token(),"{\"currency_code\":\"SAR\"}").statusCode());
+        var document=request("GET","/api/purchases/"+id,f.token(),null);
+        assertEquals("USD",JsonPath.read(document.body(),"$.data.attributes.currency_code"));
+        assertEquals("$",JsonPath.read(document.body(),"$.data.attributes.currency_symbol"));
+        db.update("UPDATE mail_settings SET public_url='https://example.com'");
+        var made=request("POST","/api/invoice-shares/purchases/"+id,f.token(),"{\"days\":\"7\"}");assertEquals(200,made.statusCode(),made.body());
+        String url=JsonPath.read(made.body(),"$.data.url"),shareId=JsonPath.read(made.body(),"$.data.id"),token=url.substring(url.lastIndexOf('/')+1),body="{\"token\":\""+token+"\"}";
+        assertEquals(64,db.queryForObject("SELECT length(token_hash) FROM invoice_shares",Integer.class));
+        var publicDoc=request("POST","/api/public/invoices/view",null,body);assertEquals(200,publicDoc.statusCode(),publicDoc.body());assertTrue(publicDoc.headers().firstValue("Cache-Control").orElse("").contains("no-store"));
+        assertFalse(publicDoc.body().contains("product_id"));assertFalse(publicDoc.body().contains("created_by"));assertFalse(((Map<?,?>)JsonPath.read(publicDoc.body(),"$.document.attributes")).containsKey("notes"));
+        db.update("UPDATE purchases SET notes='PRIVATE',grand_total=999 WHERE id=?",id);
+        assertEquals(publicDoc.body(),request("POST","/api/public/invoices/view",null,body).body());
+        assertEquals(401,request("DELETE","/api/invoice-shares/purchases/"+id+"/"+shareId,null,null).statusCode());
+        assertEquals(200,request("DELETE","/api/invoice-shares/purchases/"+id+"/"+shareId,f.token(),null).statusCode());
+        assertEquals(404,request("POST","/api/public/invoices/view",null,body).statusCode());
+        db.update("UPDATE invoice_shares SET revoked=false,expires_at=now()-interval '1 second'");
+        assertEquals(404,request("POST","/api/public/invoices/view",null,body).statusCode());
+        assertEquals(404,request("POST","/api/public/invoices/view",null,"{\"token\":\"bad\"}").statusCode());
+        assertEquals(422,request("POST","/api/invoice-shares/purchases/"+id,f.token(),"{\"days\":\"31\"}").statusCode());
+    }
+    @Test void mailSettingsAndNewAccountVerification() throws Exception {
+        String admin=login();
+        org.mockito.Mockito.when(mailTransport.encrypt("APP-SECRET")).thenReturn("encrypted-value");
+        String config="""
+            {"host":"smtp.example.com","port":587,"username":"sender@example.com","password":"APP-SECRET","security":"starttls","from_email":"sender@example.com","from_name":"MPOS","public_url":"https://example.com","enabled":true,"verify_new_users":true}
+            """;
+        assertEquals(401,request("GET","/api/mail-settings",null,null).statusCode());
+        var saved=request("PUT","/api/mail-settings",admin,config);assertEquals(200,saved.statusCode(),saved.body());assertFalse(saved.body().contains("APP-SECRET"));assertFalse(saved.body().contains("encrypted-value"));
+        assertEquals("encrypted-value",db.queryForObject("SELECT secret FROM mail_settings",String.class));
+        assertEquals(200,request("PUT","/api/mail-settings",admin,config.replace("APP-SECRET","")).statusCode());assertEquals("encrypted-value",db.queryForObject("SELECT secret FROM mail_settings",String.class));
+        assertFalse(request("GET","/api/front-setting",null,null).body().contains("smtp.example.com"));
+        long role=db.queryForObject("SELECT id FROM roles WHERE name='VIEWER'",Long.class);
+        long user=create("users",admin,"{\"first_name\":\"New\",\"email\":\"new@example.com\",\"role_id\":"+role+",\"password\":\"new-user-long-password\",\"confirm_password\":\"new-user-long-password\"}");
+        String credentials="{\"email\":\"new@example.com\",\"password\":\"new-user-long-password\"}";
+        assertEquals(403,request("POST","/api/login",null,credentials).statusCode());
+        var message=org.mockito.ArgumentCaptor.forClass(String.class);
+        org.mockito.Mockito.verify(mailTransport).send(org.mockito.ArgumentMatchers.any(),org.mockito.ArgumentMatchers.eq("new@example.com"),org.mockito.ArgumentMatchers.anyString(),message.capture());
+        String token=message.getValue().substring(message.getValue().lastIndexOf('/')+1);
+        assertEquals(422,request("POST","/api/users/"+user+"/verification",admin,"{}").statusCode());
+        assertEquals(200,request("POST","/api/public/verify-email",null,"{\"token\":\""+token+"\"}").statusCode());
+        assertEquals(200,request("POST","/api/login",null,credentials).statusCode());
+        assertEquals(422,request("POST","/api/public/verify-email",null,"{\"token\":\""+token+"\"}").statusCode());
+        assertNotNull(login());
+        String viewer=JsonPath.read(request("POST","/api/login",null,credentials).body(),"$.data.token");
+        assertEquals(403,request("GET","/api/mail-settings",viewer,null).statusCode());
+        assertEquals(403,request("POST","/api/invoice-shares/sales/1",viewer,"{\"days\":\"7\"}").statusCode());
+        org.mockito.Mockito.doThrow(new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_GATEWAY,"Mail failed")).when(mailTransport).send(org.mockito.ArgumentMatchers.any(),org.mockito.ArgumentMatchers.eq("fail@example.com"),org.mockito.ArgumentMatchers.anyString(),org.mockito.ArgumentMatchers.anyString());
+        var failed=request("POST","/api/users",admin,"{\"first_name\":\"Fail\",\"email\":\"fail@example.com\",\"role_id\":"+role+",\"password\":\"new-user-long-password\",\"confirm_password\":\"new-user-long-password\"}");
+        assertEquals(502,failed.statusCode(),failed.body());
+        assertEquals(0,db.queryForObject("SELECT count(*) FROM app_users WHERE email='fail@example.com'",Integer.class));
     }
     @Test void singleUnitDefaultsAndInvoiceUnitSnapshot() throws Exception {
         var f=stockFixture();

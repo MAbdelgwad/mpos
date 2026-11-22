@@ -17,7 +17,7 @@ public class JdbcIdentityRepository implements IdentityRepository {
     @Override public void removeExpiredTokens() { db.update("DELETE FROM access_tokens WHERE expires_at <= now()"); }
     @Override public void saveToken(String hash,Object userId,Instant expires) { db.update("INSERT INTO access_tokens(token_hash,user_id,expires_at) VALUES (?,?,?)",hash,userId,Timestamp.from(expires)); }
     @Override public Optional<Principal> principal(String hash) {
-        var rows=db.queryForList("SELECT u.id,u.role FROM access_tokens t JOIN app_users u ON u.id=t.user_id WHERE t.token_hash=? AND t.expires_at>now() AND u.enabled=true",hash);
+        var rows=db.queryForList("SELECT u.id,u.role FROM access_tokens t JOIN app_users u ON u.id=t.user_id WHERE t.token_hash=? AND t.expires_at>now() AND u.enabled=true AND u.email_verified=true",hash);
         return rows.isEmpty()?Optional.empty():Optional.of(new Principal(((Number)rows.getFirst().get("id")).longValue(),(String)rows.getFirst().get("role")));
     }
     @Override public List<String> permissions(String role) { return db.queryForList("SELECT p.name FROM permissions p JOIN role_permissions rp ON p.id=rp.permission_id JOIN roles r ON r.id=rp.role_id WHERE r.name=? ORDER BY p.id",String.class,role); }

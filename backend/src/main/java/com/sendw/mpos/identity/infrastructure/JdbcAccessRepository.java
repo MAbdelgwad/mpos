@@ -16,7 +16,7 @@ public class JdbcAccessRepository implements AccessRepository {
     @Override public int renameRole(long id,String name) { return db.update("UPDATE roles SET name=? WHERE id=?",name,id); }
     @Override public void replacePermissions(long role,List<Long> permissions) { db.update("DELETE FROM role_permissions WHERE role_id=?",role);for(long permission:permissions)db.update("INSERT INTO role_permissions VALUES (?,?)",role,permission); }
     @Override public void deleteRole(long id) { db.update("DELETE FROM roles WHERE id=?",id); }
-    @Override public List<Map<String,Object>> user(long id) { return db.queryForList("SELECT id,email,first_name,last_name,language,phone,role,enabled,created_at FROM app_users WHERE id=?",id); }
+    @Override public List<Map<String,Object>> user(long id) { return db.queryForList("SELECT id,email,first_name,last_name,language,phone,role,enabled,email_verified,created_at FROM app_users WHERE id=?",id); }
     @Override public List<Map<String,Object>> roleByName(Object name) { return db.queryForList("SELECT id,name FROM roles WHERE name=?",name); }
     @Override public List<String> roleNames(long id) { return db.queryForList("SELECT name FROM roles WHERE id=?",String.class,id); }
     @Override public UserPage users(String pattern,int page,int size) {
