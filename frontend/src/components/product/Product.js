@@ -61,8 +61,8 @@ const Product = ( props ) => {
         window.location.href = '#/app/products/detail/' + ProductId;
     };
 
-    const currencySymbol = frontSetting && frontSetting.value && frontSetting.value.currency_symbol
-    const itemsValue = currencySymbol && products.length >= 0 && products.map( ( product ) => {
+    const currencySymbol = frontSetting?.value?.currency_symbol ?? ''
+    const itemsValue = (Array.isArray(products) ? products : []).map( ( product ) => {
         return {
             name: product?.attributes.name,
             code: product?.attributes.code,
