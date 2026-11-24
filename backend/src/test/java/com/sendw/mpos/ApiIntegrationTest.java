@@ -61,6 +61,21 @@ class ApiIntegrationTest {
     long shipment(StockFixture f,String booking)throws Exception{long shipping=importPartner(f.token(),"Shipping "+booking,"shipping_agent"),transport=importPartner(f.token(),"Transport "+booking,"transport_agent");var r=postKey("/api/import-shipments",f.token(),"create-"+booking,jsonImport(shipmentBody(f,shipping,transport,booking)));assertEquals(200,r.statusCode(),r.body());return ((Number)JsonPath.read(r.body(),"$.data.id")).longValue();}
     long firstContainer(long shipment){return db.queryForObject("SELECT min(id) FROM import_containers WHERE shipment_id=?",Long.class,shipment);}
     String importSale(long customer,String mode,long container,long pieces){return jsonImport(Map.of("customer_id",customer,"date","2026-11-24","mode",mode,"containers",java.util.List.of(Map.of("container_id",container,"pieces",pieces,"product_price",10))));}
+    @Test void shipmentNumbersAreGeneratedStableUniqueAndSearchable() throws Exception {
+        var f=stockFixture(); long first=shipment(f,"BOOK-FIRST"), second=shipment(f,"BOOK-SECOND");
+        String number=JsonPath.read(request("GET","/api/import-shipments/"+first,f.token(),null).body(),"$.data.shipment_number");
+        assertEquals("IMP-"+first,number);
+        assertNotEquals(number,JsonPath.read(request("GET","/api/import-shipments/"+second,f.token(),null).body(),"$.data.shipment_number"));
+        var result=request("GET","/api/import-shipments?search="+number,f.token(),null);
+        assertEquals(200,result.statusCode(),result.body()); assertTrue(result.body().contains(number));
+        var original=request("GET","/api/import-shipments/"+first,f.token(),null);
+        Map<String,Object> body=JsonPath.read(original.body(),"$.data");
+        body.put("booking_number","BOOK-CHANGED"); body.put("shipment_number","ATTEMPT-OVERRIDE");
+        var updated=request("PUT","/api/import-shipments/"+first,f.token(),jsonImport(body));
+        assertEquals(200,updated.statusCode(),updated.body());
+        assertEquals(number,JsonPath.read(updated.body(),"$.data.shipment_number"));
+        assertEquals("BOOK-CHANGED",JsonPath.read(updated.body(),"$.data.booking_number"));
+    }
     @Test void importReceiptPartialSalesCancellationAndProtectedStock()throws Exception{
         var f=stockFixture();long shipment=shipment(f,"IMPORT-A"),container=firstContainer(shipment),customer=saleCustomer(f.token());String endpoint="/api/import-shipments/"+shipment;
         assertEquals(422,postKey(endpoint+"/sales",f.token(),"pre-receive-sale",importSale(customer,"pieces",container,2)).statusCode());

@@ -274,7 +274,7 @@ const ProductForm = ( props ) => {
             errorss[ 'order_tax' ] = getFormattedMessage( 'product.input.order-tax.valid.validate.label' );
         } else if ( productValue[ 'notes' ] && productValue[ 'notes' ].length > 100 ) {
             errorss[ 'notes' ] = getFormattedMessage( 'globally.input.notes.validate.label' );
-        } else if ( productValue[ 'isEdit' ] === false ) {
+        } else if ( !window.MPOS_SPRING && productValue[ 'isEdit' ] === false ) {
             if ( !productValue[ 'warehouse_id' ] ) {
                 errorss[ 'warehouse_id' ] = getFormattedMessage( 'purchase.select.warehouse.validate.label' );
             } else if ( !productValue[ 'supplier_id' ] ) {
@@ -343,7 +343,7 @@ const ProductForm = ( props ) => {
             formData.append( 'tax_type', data.tax_type.value ? data.tax_type.value : 1 );
         }
         formData.append( 'notes', data.notes );
-        if ( data.isEdit === false ) {
+        if ( !window.MPOS_SPRING && data.isEdit === false ) {
             formData.append( 'purchase_supplier_id', data.supplier_id.value );
             formData.append( 'purchase_warehouse_id', data.warehouse_id.value );
             formData.append( 'purchase_date', moment( data.date ).format( 'YYYY-MM-DD' ) );
@@ -378,7 +378,8 @@ const ProductForm = ( props ) => {
     return (
         <div className='card'>
             <div className='card-body'>
-                <Form>
+                <Form onSubmit={onSubmit}>
+                    {Object.values(errors).some(Boolean) && <div role='alert' className='alert alert-danger'>{Object.entries(errors).filter(([,value])=>Boolean(value)).map(([key,value])=><div key={key}>{value}</div>)}</div>}
                     <div className='row'>
                         <div className='col-xl-8'>
                             <div className='card'>

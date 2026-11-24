@@ -8,6 +8,7 @@ flock -n 9 || { echo 'Another upgrade is running.'; exit 1; }
 compose=(docker compose -p mpos-test-architecture -f compose.yaml)
 python3 scripts/setup.py
 "${compose[@]}" build api web
+"${compose[@]}" up -d --no-deps --wait db
 "${compose[@]}" stop web api
 umask 077
 mkdir -p backups

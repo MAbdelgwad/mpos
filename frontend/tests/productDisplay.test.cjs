@@ -56,6 +56,8 @@ function renderRoute(initialEntry, permissions) {
         './constants': {Tokens: {ADMIN: 'token'}}, './shared/sharedMethod': {ProtectedRoute: ({children}) => children},
         './routes': {route: [
             {path:'import-shipments/sales',ele:React.createElement('span',null,'IMPORT_SALES_PAGE'),permission:'manage_imports'},
+            {path:'shipping-agents',ele:React.createElement('span',null,'SHIPPING_AGENTS_PAGE'),permission:'manage_imports'},
+            {path:'transport-agents',ele:React.createElement('span',null,'TRANSPORT_AGENTS_PAGE'),permission:'manage_imports'},
             {path:'import-partners',ele:React.createElement('span',null,'IMPORT_PARTNERS_PAGE'),permission:'manage_imports'},
             {path: 'print/barcode', ele: React.createElement('span', null, 'BARCODE_PAGE'), permission: 'manage_products'},
             {path: 'base-units', ele: React.createElement('span', null, 'BASE_UNITS_PAGE'), permission: 'manage_units'},
@@ -79,3 +81,10 @@ test('removed base-unit screen cannot be opened in Spring mode', () => {
 });
 
 test('shipment and agent routes require import permission',()=>{assert.match(renderRoute('/import-shipments/sales',['manage_imports']),/IMPORT_SALES_PAGE/);assert.match(renderRoute('/import-partners',['manage_imports']),/IMPORT_PARTNERS_PAGE/);assert.doesNotMatch(renderRoute('/import-shipments/sales',[]),/IMPORT_SALES_PAGE/);});
+
+test('separate agent pages are reachable only with import permission',()=>{
+ for(const [path,marker] of [['shipping-agents','SHIPPING_AGENTS_PAGE'],['transport-agents','TRANSPORT_AGENTS_PAGE']]){
+  assert(renderRoute('/'+path,['manage_imports']).includes(marker));
+  assert(!renderRoute('/'+path,[]).includes(marker));
+ }
+});

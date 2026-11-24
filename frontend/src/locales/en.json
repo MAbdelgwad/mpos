@@ -792,5 +792,7 @@
     "imports.documents": "Shipment documents",
     "imports.expenses": "Shipment expenses",
     "imports.sales": "Shipment sales",
-    "imports.partners": "Shipping and transport agents"
+    "imports.partners": "Shipping and transport agents",
+    "imports.shippingAgents": "Sea shipping agents",
+    "imports.transportAgents": "Land transport agents"
 }

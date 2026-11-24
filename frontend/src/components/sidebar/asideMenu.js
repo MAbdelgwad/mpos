@@ -1,3 +1,4 @@
+import {shipmentMenuTarget} from '../../features/imports/navigation';
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { ProSidebar, SidebarHeader, SidebarContent, MenuItem, Menu, SubMenu } from 'react-pro-sidebar';
@@ -244,7 +245,7 @@ const AsideMenu = ( props ) =>
                             return (
                                 mainItems.newRoute ?
                                     <SubMenu key={ index } title={ intl.formatMessage( { id: `${ mainItems.title }` } ) }
-                                        className={ location.pathname === mainItems?.subPath?.userSubPath
+                                        className={ Object.values(mainItems.subPath || {}).includes(location.pathname) || location.pathname === mainItems?.subPath?.userSubPath
                                             || location.pathname === mainItems?.subPath?.customerSubPath
                                             || location.pathname === mainItems?.subPath?.suppliareSubPath
                                             || location.pathname === mainItems?.subPath?.productsSubPath
@@ -271,9 +272,9 @@ const AsideMenu = ( props ) =>
                                                 <MenuItem key={ index }
                                                     icon={ subMainItems.fontIcon }
                                                     className={ `${ isMenuCollapse === false ? subMainItems.class : '' } flex-column` }
-                                                    active={ location.pathname === subMainItems.to || location.pathname === subMainItems.path || location.pathname.includes( subMainItems.to ) || location.pathname === subMainItems.stockPath || location.pathname === subMainItems.productPath || location.pathname === subMainItems.purchasePath || location.pathname === subMainItems.topSellingPath || location.pathname === subMainItems.productQuantityAlertPath || location.pathname === ( subMainItems.stockDetailPath + '/' + id ) }
+                                                    active={ location.pathname === subMainItems.to || location.pathname === subMainItems.path || (subMainItems.to !== '/app/import-shipments' && location.pathname.startsWith(subMainItems.to + '/')) || location.pathname === subMainItems.stockPath || location.pathname === subMainItems.productPath || location.pathname === subMainItems.purchasePath || location.pathname === subMainItems.topSellingPath || location.pathname === subMainItems.productQuantityAlertPath || location.pathname === ( subMainItems.stockDetailPath + '/' + id ) }
                                                 >
-                                                    <Link to={ subMainItems.to }>
+                                                    <Link to={ shipmentMenuTarget(subMainItems.to, location) }>
                                                         { intl.formatMessage( { id: `${ subMainItems.title }` } ) }
                                                     </Link>
                                                 </MenuItem>

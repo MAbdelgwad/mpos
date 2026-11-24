@@ -95,7 +95,9 @@ import RegisterReport from "./components/report/registerReport/RegisterReport";
 
 export const route = [
     ...['import-shipments','import-shipments/documents','import-shipments/expenses','import-shipments/sales'].map(path=>({path,permission:'manage_imports',ele:<ImportShipments/>})),
-    {path:'import-partners',permission:'manage_imports',ele:<ImportPartners/>},
+    {path:'import-partners',permission:'manage_imports',ele:<ImportPartners kind="shipping_agent"/>},
+    {path:'shipping-agents',permission:'manage_imports',ele:<ImportPartners key="shipping" kind="shipping_agent"/>},
+    {path:'transport-agents',permission:'manage_imports',ele:<ImportPartners key="transport" kind="transport_agent"/>},
     ...(window.MPOS_SPRING ? [{path:"inventory",ele:<SpringInventory/>,permission:"manage_inventory"}] : []),
     {
         path: "dashboard",

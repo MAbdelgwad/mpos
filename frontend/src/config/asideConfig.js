@@ -254,7 +254,7 @@ export default [
         to: "/app/suppliers",
         class: "d-flex",
         is_submenu: "true",
-        subPath: {importPartners:"/app/import-partners",
+        subPath: {shippingAgents:"/app/shipping-agents",transportAgents:"/app/transport-agents",
             customerSubPath: "/app/customers",
             userSubPath: "/app/users",
             suppliareSubPath: "/app/suppliers",
@@ -264,7 +264,8 @@ export default [
             Permissions.MANAGE_CUSTOMERS ||
             Permissions.MANAGE_USER,
         subMenu: [
-            {title:'imports.partners',name:'import partners',fontIcon:<FontAwesomeIcon icon={faTruck}/>,to:'/app/import-partners',class:'d-flex',permission:'manage_imports'},
+            {title:'imports.shippingAgents',name:'shipping agents',fontIcon:<FontAwesomeIcon icon={faTruck}/>,to:'/app/shipping-agents',class:'d-flex',permission:'manage_imports'},
+            {title:'imports.transportAgents',name:'transport agents',fontIcon:<FontAwesomeIcon icon={faTruck}/>,to:'/app/transport-agents',class:'d-flex',permission:'manage_imports'},
             {
                 title: "suppliers.title",
                 name: "suppliers",

@@ -786,5 +786,7 @@
     "imports.documents": "أوراق الشحنة",
     "imports.expenses": "مصروفات الشحنة",
     "imports.sales": "مبيعات الشحنة",
-    "imports.partners": "توكيلات الشحن ووكلاء النقل"
+    "imports.partners": "توكيلات الشحن ووكلاء النقل",
+    "imports.shippingAgents": "وكلاء الشحن البحري",
+    "imports.transportAgents": "وكلاء النقل البري"
 }
