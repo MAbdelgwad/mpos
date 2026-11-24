@@ -55,6 +55,8 @@ function renderRoute(initialEntry, permissions) {
         react: React, 'react-router-dom': router, './assets/sass/style.react.scss': {},
         './constants': {Tokens: {ADMIN: 'token'}}, './shared/sharedMethod': {ProtectedRoute: ({children}) => children},
         './routes': {route: [
+            {path:'import-shipments/sales',ele:React.createElement('span',null,'IMPORT_SALES_PAGE'),permission:'manage_imports'},
+            {path:'import-partners',ele:React.createElement('span',null,'IMPORT_PARTNERS_PAGE'),permission:'manage_imports'},
             {path: 'print/barcode', ele: React.createElement('span', null, 'BARCODE_PAGE'), permission: 'manage_products'},
             {path: 'base-units', ele: React.createElement('span', null, 'BASE_UNITS_PAGE'), permission: 'manage_units'},
             {path: 'pos', ele: React.createElement('span', null, 'POS_PAGE'), permission: 'manage_pos'}
@@ -75,3 +77,5 @@ test('barcode permission and unsupported Spring routes remain restricted', () =>
 test('removed base-unit screen cannot be opened in Spring mode', () => {
     assert.doesNotMatch(renderRoute('/base-units', ['manage_units']), /BASE_UNITS_PAGE/);
 });
+
+test('shipment and agent routes require import permission',()=>{assert.match(renderRoute('/import-shipments/sales',['manage_imports']),/IMPORT_SALES_PAGE/);assert.match(renderRoute('/import-partners',['manage_imports']),/IMPORT_PARTNERS_PAGE/);assert.doesNotMatch(renderRoute('/import-shipments/sales',[]),/IMPORT_SALES_PAGE/);});

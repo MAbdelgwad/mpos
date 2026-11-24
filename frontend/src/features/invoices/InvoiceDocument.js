@@ -37,6 +37,7 @@ export default function InvoiceDocument({document: doc, type, settings = {}}) {
             {settings.invoice_address && <div>{settings.invoice_address}</div>}{settings.invoice_phone && <div>{t('الهاتف','Phone')}: {settings.invoice_phone}</div>}
             {settings.invoice_tax_number && <div>{t('الرقم الضريبي للشركة','Company tax number')}: {settings.invoice_tax_number}</div>}
         </header>
+        {a.import_containers?.length>0&&<section><strong>{t('الشحنة / الكونتينرات','Shipment / containers')}</strong>{a.import_containers.map((c,i)=><div key={i}>{c.booking_number} — {c.container_number}: {c.pieces} {t('قطعة','pieces')}</div>)}</section>}
         <div className="metadata"><span>{t('الرقم','Reference')}: {a.reference_code}</span><span>{t('التاريخ','Date')}: {String(a.date || '').slice(0,10)}</span></div>
         <div>{sales?t('العميل','Customer'):t('المورد','Supplier')}: {sales?a.customer_name:a.supplier_name}</div>
         <div>{t('المخزن','Warehouse')}: {a.warehouse_name}</div><div className="status">{status}</div>

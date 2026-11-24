@@ -1,3 +1,5 @@
+import ImportShipments from './features/imports/ShipmentsPage';
+import ImportPartners from './features/imports/PartnersPage';
 import SpringSales from './features/sales/SalesPage';
 import SpringPurchases from './features/purchasing/PurchasesPage';
 import SpringInventory from './features/inventory/InventoryPage';
@@ -92,6 +94,8 @@ import EditLanguageData from "./components/languages/EditLanguageData";
 import RegisterReport from "./components/report/registerReport/RegisterReport";
 
 export const route = [
+    ...['import-shipments','import-shipments/documents','import-shipments/expenses','import-shipments/sales'].map(path=>({path,permission:'manage_imports',ele:<ImportShipments/>})),
+    {path:'import-partners',permission:'manage_imports',ele:<ImportPartners/>},
     ...(window.MPOS_SPRING ? [{path:"inventory",ele:<SpringInventory/>,permission:"manage_inventory"}] : []),
     {
         path: "dashboard",

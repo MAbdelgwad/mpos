@@ -31,6 +31,7 @@ public class StockService implements StockOperations {
             BigDecimal quantity=repository.lockBalance(key.warehouse(),key.product());
             if(kind.equals("OPENING") && repository.hasMovements(key.warehouse(),key.product()))throw Requests.conflict("Opening balance is only allowed before the first movement");
             BigDecimal next=StockPolicy.nextBalance(quantity,totals.get(key),key.warehouse(),key.product());
+            if(totals.get(key).signum()<0 && next.compareTo(repository.importedBalance(key.warehouse(),key.product()))<0)throw Requests.conflict("هذه الكمية مخصصة لشحنات الاستيراد؛ استخدم بيع الشحنة / Stock belongs to import containers; sell through the shipment module");
             balances.put(key,next);
         }
         UUID operation=UUID.randomUUID();repository.createOperation(operation,kind,purchase,sale,reason,identity.current().id());

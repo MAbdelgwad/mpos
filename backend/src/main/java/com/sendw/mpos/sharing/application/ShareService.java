@@ -17,7 +17,7 @@ public class ShareService {
  @org.springframework.transaction.annotation.Transactional
  public Map<String,Object> create(String kind,long id,int days,String email){permit(kind);if(days<1||days>30)throw Validation.invalid("Link expiry must be 1–30 days");if(email!=null&&!email.isBlank())MailService.email(email);
   var doc=(Map<?,?>)(kind.equals("sales")?sales.show(id):purchases.show(id)).get("data");var attrs=(Map<?,?>)doc.get("attributes");
-  var clean=select(attrs,"reference_code","date","customer_name","supplier_name","warehouse_name","status","discount","tax_rate","tax_amount","shipping","grand_total","paid_amount","due_amount","currency_code","currency_symbol");
+  var clean=select(attrs,"reference_code","date","customer_name","supplier_name","warehouse_name","status","discount","tax_rate","tax_amount","shipping","grand_total","paid_amount","due_amount","currency_code","currency_symbol","import_containers");
   String linesKey=kind.equals("sales")?"sale_items":"purchase_items";
   clean.put(linesKey,((List<?>)attrs.get(linesKey)).stream().map(x->select((Map<?,?>)x,"name","code","quantity","unit_name",kind.equals("sales")?"product_price":"product_cost","discount_amount","tax_amount","tax_value","tax_type","sub_total")).toList());
   var style=new LinkedHashMap<String,String>();settings.settings().forEach((k,v)->{if(k.startsWith("invoice_")||Set.of("company_name","currency_symbol").contains(k))style.put(k,v);});

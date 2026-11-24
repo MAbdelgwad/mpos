@@ -16,6 +16,7 @@ public class JdbcStockRepository implements StockRepository {
         return db.queryForObject("SELECT quantity FROM stock_balances WHERE warehouse_id=? AND product_id=? FOR UPDATE", BigDecimal.class, warehouse, product);
     }
 
+    @Override public BigDecimal importedBalance(long warehouse,long product){return db.queryForObject("SELECT COALESCE(sum(c.pieces-COALESCE((SELECT sum(a.pieces) FROM import_sale_allocations a JOIN sales sale ON sale.id=a.sale_id WHERE a.container_id=c.id AND sale.status<>4),0)),0) FROM import_containers c JOIN import_shipments s ON s.id=c.shipment_id WHERE s.status='received' AND s.warehouse_id=? AND c.product_id=?",BigDecimal.class,warehouse,product);}
     @Override public boolean hasMovements(long warehouse, long product) {
         return db.queryForObject("SELECT count(*) FROM stock_movements WHERE warehouse_id=? AND product_id=?", Long.class, warehouse, product) > 0;
     }

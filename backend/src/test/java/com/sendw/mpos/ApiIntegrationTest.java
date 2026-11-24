@@ -38,7 +38,7 @@ class ApiIntegrationTest {
     static final String WAREHOUSE="""
         {"name":"المخزن الرئيسي","phone":"0501234567","country":"Saudi Arabia","city":"Riyadh","email":"","zip_code":"00123"}
         """;
-    @BeforeEach void clear() { db.update("UPDATE mail_settings SET enabled=false,verify_new_users=false,public_url='',secret=''");db.update("DELETE FROM invoice_shares"); db.update("UPDATE ui_settings SET value='' WHERE key IN ('currency_code','currency_symbol')"); db.update("DELETE FROM access_tokens"); db.execute("TRUNCATE document_payments,sale_items,sales,stock_movements,stock_operations,stock_balances,purchase_items,purchases,request_keys,warehouses,products,units,brands,product_categories,customers,suppliers,media CASCADE"); db.update("DELETE FROM app_users WHERE email<>'admin@example.com'"); db.update("DELETE FROM roles WHERE protected_role=false"); }
+    @BeforeEach void clear() { db.update("UPDATE mail_settings SET enabled=false,verify_new_users=false,public_url='',secret=''");db.update("DELETE FROM invoice_shares"); db.update("UPDATE ui_settings SET value='' WHERE key IN ('currency_code','currency_symbol')"); db.update("DELETE FROM access_tokens"); db.execute("TRUNCATE import_partners,document_payments,sale_items,sales,stock_movements,stock_operations,stock_balances,purchase_items,purchases,request_keys,warehouses,products,units,brands,product_categories,customers,suppliers,media CASCADE"); db.update("DELETE FROM app_users WHERE email<>'admin@example.com'"); db.update("DELETE FROM roles WHERE protected_role=false"); }
     @AfterAll static void stopDatabase() throws Exception { postgres.close(); }
 
     HttpResponse<String> request(String method,String path,String token,String body) throws Exception {
@@ -52,6 +52,63 @@ class ApiIntegrationTest {
         assertEquals(200,r.statusCode(),r.body());
         assertFalse(r.body().contains("password_hash"));
         return JsonPath.read(r.body(),"$.data.token");
+    }
+    String jsonImport(Object value){return new tools.jackson.databind.ObjectMapper().writeValueAsString(value);}
+    long importPartner(String token,String name,String kind)throws Exception{
+        var r=request("POST","/api/import-partners",token,jsonImport(Map.of("name",name,"kind",kind)));assertEquals(200,r.statusCode(),r.body());return ((Number)JsonPath.read(r.body(),"$.data.id")).longValue();
+    }
+    Map<String,Object> shipmentBody(StockFixture f,long shipping,long transport,String booking){return new java.util.LinkedHashMap<>(Map.of("date","2026-11-24","booking_number",booking,"shipping_agent_id",shipping,"transport_agent_id",transport,"warehouse_id",f.warehouse(),"expected_containers",2,"containers",java.util.List.of(Map.of("container_number","ABCD1234567","product_id",f.product(),"pieces",10,"weight_kg",200),Map.of("container_number","ABCD7654321","product_id",f.product(),"pieces",20,"weight_kg",400))));}
+    long shipment(StockFixture f,String booking)throws Exception{long shipping=importPartner(f.token(),"Shipping "+booking,"shipping_agent"),transport=importPartner(f.token(),"Transport "+booking,"transport_agent");var r=postKey("/api/import-shipments",f.token(),"create-"+booking,jsonImport(shipmentBody(f,shipping,transport,booking)));assertEquals(200,r.statusCode(),r.body());return ((Number)JsonPath.read(r.body(),"$.data.id")).longValue();}
+    long firstContainer(long shipment){return db.queryForObject("SELECT min(id) FROM import_containers WHERE shipment_id=?",Long.class,shipment);}
+    String importSale(long customer,String mode,long container,long pieces){return jsonImport(Map.of("customer_id",customer,"date","2026-11-24","mode",mode,"containers",java.util.List.of(Map.of("container_id",container,"pieces",pieces,"product_price",10))));}
+    @Test void importReceiptPartialSalesCancellationAndProtectedStock()throws Exception{
+        var f=stockFixture();long shipment=shipment(f,"IMPORT-A"),container=firstContainer(shipment),customer=saleCustomer(f.token());String endpoint="/api/import-shipments/"+shipment;
+        assertEquals(422,postKey(endpoint+"/sales",f.token(),"pre-receive-sale",importSale(customer,"pieces",container,2)).statusCode());
+        assertEquals(200,request("POST",endpoint+"/receive",f.token(),"{}").statusCode());assertStock(f.warehouse(),f.product(),"30");
+        assertEquals(200,request("POST",endpoint+"/receive",f.token(),"{}").statusCode());assertEquals(1,db.queryForObject("SELECT count(*) FROM stock_operations WHERE kind='IMPORT_RECEIPT'",Integer.class));
+        assertEquals(409,request("POST",endpoint+"/cancel",f.token(),"{}").statusCode());
+        assertEquals(409,postKey("/api/sales",f.token(),"generic-import-sale",sale(f,customer,1,1)).statusCode());assertStock(f.warehouse(),f.product(),"30");
+        assertEquals(409,postKey("/api/inventory/adjustments",f.token(),"consume-import-stock",adjustment(f,-1)).statusCode());
+        var sold=postKey(endpoint+"/sales",f.token(),"partial-import-sale",importSale(customer,"pieces",container,3));assertEquals(200,sold.statusCode(),sold.body());long sale=((Number)JsonPath.read(sold.body(),"$.data.id")).longValue();assertStock(f.warehouse(),f.product(),"27");assertEquals("SAR",JsonPath.read(sold.body(),"$.data.attributes.currency_code"));assertEquals("IMPORT-A",JsonPath.read(sold.body(),"$.data.attributes.import_containers[0].booking_number"));
+        var duplicate=postKey(endpoint+"/sales",f.token(),"partial-import-sale",importSale(customer,"pieces",container,3));assertEquals(200,duplicate.statusCode());assertEquals(1,db.queryForObject("SELECT count(*) FROM import_sale_allocations",Integer.class));assertStock(f.warehouse(),f.product(),"27");
+        assertEquals(409,postKey(endpoint+"/sales",f.token(),"oversell-import-sale",importSale(customer,"pieces",container,8)).statusCode());
+        assertEquals(422,postKey(endpoint+"/sales",f.token(),"not-entire-container",importSale(customer,"container",container,3)).statusCode());
+        assertEquals(422,postKey(endpoint+"/sales",f.token(),"not-entire-shipment",importSale(customer,"shipment",container,7)).statusCode());
+        assertEquals(200,request("POST","/api/sales/"+sale+"/cancel",f.token(),"{}").statusCode());assertStock(f.warehouse(),f.product(),"30");
+        assertEquals(30,((Number)JsonPath.read(request("GET",endpoint,f.token(),null).body(),"$.data.remaining_pieces")).intValue());
+        var full=postKey(endpoint+"/sales",f.token(),"full-import-container",importSale(customer,"container",container,10));assertEquals(200,full.statusCode(),full.body());assertStock(f.warehouse(),f.product(),"20");
+        long second=db.queryForObject("SELECT max(id) FROM import_containers WHERE shipment_id=?",Long.class,shipment);
+        assertEquals(200,postKey(endpoint+"/sales",f.token(),"full-import-shipment",importSale(customer,"shipment",second,20)).statusCode());assertStock(f.warehouse(),f.product(),"0");
+        assertEquals(0,((Number)JsonPath.read(request("GET",endpoint,f.token(),null).body(),"$.data.remaining_pieces")).intValue());
+    }
+    @Test void concurrentImportSalesCannotOversellContainer()throws Exception{
+        var f=stockFixture();long shipment=shipment(f,"IMPORT-RACE"),container=firstContainer(shipment),customer=saleCustomer(f.token());String endpoint="/api/import-shipments/"+shipment;request("POST",endpoint+"/receive",f.token(),"{}");String body=importSale(customer,"pieces",container,7);
+        var a=http.sendAsync(keyed(endpoint+"/sales",f.token(),"import-race-one",body),HttpResponse.BodyHandlers.ofString());var b=http.sendAsync(keyed(endpoint+"/sales",f.token(),"import-race-two",body),HttpResponse.BodyHandlers.ofString());
+        var codes=java.util.stream.Stream.of(a.get(20,java.util.concurrent.TimeUnit.SECONDS).statusCode(),b.get(20,java.util.concurrent.TimeUnit.SECONDS).statusCode()).sorted().toList();assertEquals(java.util.List.of(200,409),codes);assertStock(f.warehouse(),f.product(),"23");
+    }
+    HttpResponse<String> importFile(String endpoint,String token,String field,String value,byte[] bytes,String filename)throws Exception{
+        String boundary="MPOSIMPORTBOUNDARY";var out=new java.io.ByteArrayOutputStream();out.write(("--"+boundary+"\r\nContent-Disposition: form-data; name=\""+field+"\"\r\n\r\n"+value+"\r\n--"+boundary+"\r\nContent-Disposition: form-data; name=\"file\"; filename=\""+filename+"\"\r\nContent-Type: application/octet-stream\r\n\r\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));out.write(bytes);out.write(("\r\n--"+boundary+"--\r\n").getBytes());return http.send(HttpRequest.newBuilder(URI.create("http://localhost:"+port+endpoint)).header("Authorization","Bearer "+token).header("Content-Type","multipart/form-data; boundary="+boundary).POST(HttpRequest.BodyPublishers.ofByteArray(out.toByteArray())).build(),HttpResponse.BodyHandlers.ofString());
+    }
+    @Test void importAttachmentsExpenseCurrenciesAndAccess()throws Exception{
+        var f=stockFixture();long shipment=shipment(f,"IMPORT-FILES"),other=shipment(f,"IMPORT-OTHER");String endpoint="/api/import-shipments/"+shipment;byte[] pdf="%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF\n".getBytes();
+        var upload=importFile(endpoint+"/files",f.token(),"kind","booking_confirmation",pdf,"booking.pdf");assertEquals(200,upload.statusCode(),upload.body());String file=JsonPath.read(upload.body(),"$.data.files[0].id");
+        assertEquals(401,request("GET",endpoint+"/files/"+file,null,null).statusCode());assertEquals(404,request("GET","/api/import-shipments/"+other+"/files/"+file,f.token(),null).statusCode());
+        var download=request("GET",endpoint+"/files/"+file,f.token(),null);assertEquals(200,download.statusCode());assertTrue(download.headers().firstValue("Content-Disposition").orElse("").startsWith("attachment"));assertEquals("nosniff",download.headers().firstValue("X-Content-Type-Options").orElse(""));
+        assertEquals(422,importFile(endpoint+"/files",f.token(),"kind","food_safety","<svg><script/></svg>".getBytes(),"fake.pdf").statusCode());
+        var expense=new java.util.LinkedHashMap<String,Object>(Map.of("date","2026-11-24","kind","sea_freight","invoice_number","SEA001","currency","USD","amount","100","rate_to_sar","3.75"));
+        var recorded=importFile(endpoint+"/expenses",f.token(),"data",jsonImport(expense),pdf,"sea.pdf");assertEquals(200,recorded.statusCode(),recorded.body());assertEquals(375,((Number)JsonPath.read(recorded.body(),"$.data.expenses_sar")).intValue());
+        expense.put("invoice_number","LAND001");expense.put("kind","land_transport");expense.put("currency","EGP");expense.put("amount","1000");expense.put("rate_to_sar","0.075");assertEquals(200,importFile(endpoint+"/expenses",f.token(),"data",jsonImport(expense),pdf,"land.pdf").statusCode());
+        assertEquals(450,((Number)JsonPath.read(request("GET",endpoint,f.token(),null).body(),"$.data.expenses_sar")).intValue());
+        expense.put("invoice_number","BAD001");expense.put("currency","SAR");assertEquals(422,importFile(endpoint+"/expenses",f.token(),"data",jsonImport(expense),pdf,"bad.pdf").statusCode());
+        assertEquals(2,db.queryForObject("SELECT count(*) FROM import_expenses",Integer.class));assertEquals(3,db.queryForObject("SELECT count(*) FROM import_files",Integer.class));
+        db.update("UPDATE app_users SET role='VIEWER' WHERE email='admin@example.com'");try{assertEquals(403,request("GET",endpoint,f.token(),null).statusCode());assertEquals(403,request("GET",endpoint+"/files/"+file,f.token(),null).statusCode());}finally{db.update("UPDATE app_users SET role='ADMIN' WHERE email='admin@example.com'");}
+    }
+    @Test void importDraftVersionExpectedCountAndFractionalPieces()throws Exception{
+        var f=stockFixture();long a=importPartner(f.token(),"Shipping","shipping_agent"),b=importPartner(f.token(),"Transport","transport_agent");var body=shipmentBody(f,a,b,"IMPORT-EDIT");body.put("expected_containers",3);var created=postKey("/api/import-shipments",f.token(),"import-edit-create",jsonImport(body));assertEquals(200,created.statusCode(),created.body());long id=((Number)JsonPath.read(created.body(),"$.data.id")).longValue();String path="/api/import-shipments/"+id;
+        assertEquals(422,request("POST",path+"/receive",f.token(),"{}").statusCode());assertEquals(0,db.queryForObject("SELECT count(*) FROM stock_movements",Integer.class));
+        body.put("expected_containers",2);body.put("version",0);assertEquals(200,request("PUT",path,f.token(),jsonImport(body)).statusCode());assertEquals(409,request("PUT",path,f.token(),jsonImport(body)).statusCode());
+        body.put("version",1);body.put("containers",java.util.List.of(Map.of("container_number","FRACTION","product_id",f.product(),"pieces",1.5,"weight_kg",200)));assertEquals(422,request("PUT",path,f.token(),jsonImport(body)).statusCode());
+        assertEquals(200,request("POST",path+"/receive",f.token(),"{}").statusCode());assertStock(f.warehouse(),f.product(),"30");assertEquals(409,request("PUT",path,f.token(),jsonImport(body)).statusCode());
     }
     @Test void unitMigrationPreservesMoneyStockAndHistoricalLabels() throws Exception {
         String schema="units_upgrade_test";

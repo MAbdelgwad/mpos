@@ -34,6 +34,11 @@ import {
 import { getFormattedMessage } from "../shared/sharedMethod";
 
 export default [
+    {title:'imports.title',name:'imports',fontIcon:<FontAwesomeIcon icon={faTruck}/>,to:'/app/import-shipments',class:'d-flex',permission:'manage_imports',is_submenu:'true',subPath:{basic:'/app/import-shipments',documents:'/app/import-shipments/documents',expenses:'/app/import-shipments/expenses',sales:'/app/import-shipments/sales'},subMenu:[
+      {title:'imports.basic',name:'import basic',fontIcon:<FontAwesomeIcon icon={faBoxes}/>,to:'/app/import-shipments',class:'d-flex',permission:'manage_imports'},
+      {title:'imports.documents',name:'import documents',fontIcon:<FontAwesomeIcon icon={faFile}/>,to:'/app/import-shipments/documents',class:'d-flex',permission:'manage_imports'},
+      {title:'imports.expenses',name:'import expenses',fontIcon:<FontAwesomeIcon icon={faMoneyBills}/>,to:'/app/import-shipments/expenses',class:'d-flex',permission:'manage_imports'},
+      {title:'imports.sales',name:'import sales',fontIcon:<FontAwesomeIcon icon={faReceipt}/>,to:'/app/import-shipments/sales',class:'d-flex',permission:'manage_imports'}]},
     {
         title: "dashboard.title",
         name: "dashboard",
@@ -249,7 +254,7 @@ export default [
         to: "/app/suppliers",
         class: "d-flex",
         is_submenu: "true",
-        subPath: {
+        subPath: {importPartners:"/app/import-partners",
             customerSubPath: "/app/customers",
             userSubPath: "/app/users",
             suppliareSubPath: "/app/suppliers",
@@ -259,6 +264,7 @@ export default [
             Permissions.MANAGE_CUSTOMERS ||
             Permissions.MANAGE_USER,
         subMenu: [
+            {title:'imports.partners',name:'import partners',fontIcon:<FontAwesomeIcon icon={faTruck}/>,to:'/app/import-partners',class:'d-flex',permission:'manage_imports'},
             {
                 title: "suppliers.title",
                 name: "suppliers",

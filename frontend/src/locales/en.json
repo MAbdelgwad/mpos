@@ -781,10 +781,16 @@
     "product.quantity.title": "Product Quantity",
     "pos.this.product.out.of.stock.message": "This product is out of stock",
     "pos.quantity.exceeds.quantity.available.in.stock.message": "Quantity exceeds quantity available in stock",
-    "yes.modal.title":"Yes",
-    "no.modal.title":"No",
+    "yes.modal.title": "Yes",
+    "no.modal.title": "No",
     "pdf.btn.label": "PDF",
-    "select.report.label":"Select User",
+    "select.report.label": "Select User",
     "suppliers.import.title": "Import Suppliers",
-    "customers.import.title": "Import Customers"
+    "customers.import.title": "Import Customers",
+    "imports.title": "Import shipments",
+    "imports.basic": "Basic data and containers",
+    "imports.documents": "Shipment documents",
+    "imports.expenses": "Shipment expenses",
+    "imports.sales": "Shipment sales",
+    "imports.partners": "Shipping and transport agents"
 }

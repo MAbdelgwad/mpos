@@ -7,6 +7,8 @@ import java.util.Map;
 public interface SaleRepository {
     record Header(long customer, long warehouse, LocalDate date, int status, Map<String,Object> totals, String notes, long actor) {}
     record Page(List<Map<String,Object>> rows, long total) {}
+    boolean imported(long id);
+    List<Map<String,Object>> importContainers(long id);
     Map<String,Object> find(long id, boolean lock);
     List<Map<String,Object>> lockProduct(long id);
     List<Map<String,Object>> lockUnit(Object id);

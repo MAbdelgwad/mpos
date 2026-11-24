@@ -10,6 +10,8 @@ import org.springframework.stereotype.Repository;
 public class JdbcSaleRepository implements SaleRepository {
     private final JdbcTemplate db;
     public JdbcSaleRepository(JdbcTemplate db) { this.db=db; }
+    @Override public List<Map<String,Object>> importContainers(long id){return db.queryForList("SELECT s.booking_number,c.container_number,a.pieces FROM import_sale_allocations a JOIN import_containers c ON c.id=a.container_id JOIN import_shipments s ON s.id=c.shipment_id WHERE a.sale_id=? ORDER BY c.id",id);}
+    @Override public boolean imported(long id){return db.queryForObject("SELECT count(*) FROM import_sale_allocations WHERE sale_id=?",Integer.class,id)>0;}
     @Override public Map<String,Object> find(long id, boolean lock) {
         var rows=db.queryForList("SELECT * FROM sales WHERE id=?"+(lock?" FOR UPDATE":""),id);
         if(rows.isEmpty())throw Validation.missing();return rows.getFirst();

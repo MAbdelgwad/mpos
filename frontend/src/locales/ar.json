@@ -775,10 +775,16 @@
     "product.quantity.title": "كمية المنتج",
     "pos.this.product.out.of.stock.message": "نفد هذا المنتج من المخازن",
     "pos.quantity.exceeds.quantity.available.in.stock.message": "الكمية تتجاوز الكمية المتوفرة في المخزون",
-    "yes.modal.title":"نعم",
-    "no.modal.title":"لا",
+    "yes.modal.title": "نعم",
+    "no.modal.title": "لا",
     "language.edit.title": "تحرير اللغة",
-    "select.report.label":"اختر المستخدم",
+    "select.report.label": "اختر المستخدم",
     "suppliers.import.title": "استيراد الموردين",
-    "customers.import.title": "استيراد العملاء"
+    "customers.import.title": "استيراد العملاء",
+    "imports.title": "شحنات الاستيراد",
+    "imports.basic": "البيانات الأساسية والكونتينرات",
+    "imports.documents": "أوراق الشحنة",
+    "imports.expenses": "مصروفات الشحنة",
+    "imports.sales": "مبيعات الشحنة",
+    "imports.partners": "توكيلات الشحن ووكلاء النقل"
 }

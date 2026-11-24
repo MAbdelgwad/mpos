@@ -19,3 +19,5 @@ test('unsafe layout settings cannot inject CSS or markup',()=>{
 });
 
 test('invoice currency snapshot wins over changed default',()=>{const d=doc('sales');d.attributes.currency_symbol='USD';const html=printModule.invoiceHtml(d,'sales',{currency_symbol:'SAR'});assert(html.includes('USD'));assert(!html.includes('SAR'));});
+
+test('shipment references and container quantities print safely',()=>{const d=doc('sales');d.attributes.import_containers=[{booking_number:'BOOK-<x>',container_number:'ABCD1234567',pieces:3}];const html=printModule.invoiceHtml(d,'sales',{});assert(html.includes('BOOK-&lt;x&gt;'));assert(html.includes('ABCD1234567'));assert(!html.includes('<x>'));});
