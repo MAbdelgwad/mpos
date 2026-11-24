@@ -1,0 +1,47 @@
+name: mpos-spring
+x-log-options: &log-options
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+services:
+  db:
+    logging: *log-options
+    image: postgres:17
+    environment:
+      POSTGRES_DB: mpos
+      POSTGRES_USER: mpos
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:?Set DATABASE_PASSWORD in .env}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mpos -d mpos"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  api:
+    logging: *log-options
+    build: ./backend
+    environment:
+      DATABASE_URL: jdbc:postgresql://db:5432/mpos
+      DATABASE_USER: mpos
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:?Set DATABASE_PASSWORD in .env}
+      MPOS_MAIL_KEY: ${MPOS_MAIL_KEY:-}
+      MPOS_ADMIN_EMAIL: ${MPOS_ADMIN_EMAIL:?Set MPOS_ADMIN_EMAIL in .env}
+      MPOS_ADMIN_PASSWORD: ${MPOS_ADMIN_PASSWORD:?Set MPOS_ADMIN_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:${MPOS_API_PORT:-18180}:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+  web:
+    logging: *log-options
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "127.0.0.1:${MPOS_WEB_PORT:-18181}:8080"
+    depends_on:
+      - api
+volumes:
+  postgres-data:

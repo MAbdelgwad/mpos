@@ -1,0 +1,8 @@
+.git
+legacy
+**/node_modules
+**/target
+frontend/dist
+**/.env
+.env
+/diagnostics/
