@@ -498,7 +498,7 @@
     "reports.title": "تقرير",
     "warehouse.reports.title": "تقرير المستودع",
     "sale.reports.title": "تقرير البيع",
-    "stock.reports.title": "تقرير الاسهم",
+    "stock.reports.title": "تقرير المخزون",
     "purchase.reports.title": "تقرير الشراء",
     "top-selling-product.reports.title": "تقرير المنتجات الأكثر مبيعًا",
     "globally.react-table.column.code.label": "شفرة",
@@ -727,7 +727,7 @@
     "paying-amount-validate-label": "يجب أن يكون مبلغ الدفع أقل من أو يساوي \"مبلغ الدفع\"",
     "hold-list.reference-code.error": "حقل الرمز المرجعي مطلوب.",
     "settings.clear-cache.success.message": "مسح ذاكرة التخزين المؤقت بنجاح",
-    "product.product-in-stock.label": "في الأوراق المالية",
+    "product.product-in-stock.label": "الكمية المتوفرة في المخزون",
     "product-items.label": "العناصر",
     "Payload.key.lable": "الحمولة",
     "base-units.title": "الوحدات الأساسية",
@@ -788,5 +788,6 @@
     "imports.sales": "مبيعات الشحنة",
     "imports.partners": "توكيلات الشحن ووكلاء النقل",
     "imports.shippingAgents": "وكلاء الشحن البحري",
-    "imports.transportAgents": "وكلاء النقل البري"
+    "imports.transportAgents": "وكلاء النقل البري",
+    "product.code.automatic": "تُنشأ تلقائيًا عند الحفظ"
 }

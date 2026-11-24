@@ -22,6 +22,15 @@ public class JdbcCatalogRepository implements CatalogRepository {
         return new Page(db.queryForList(sql,args.toArray()),total);
     }
     @Override public List<Map<String,Object>> find(String table,long id) { return db.queryForList("SELECT * FROM "+CatalogSchema.table(table).table()+" WHERE id=?",id); }
+    @Override public String nextProductCode() {
+        // Serialize automatic allocations; sequence values are never reused after rollback.
+        db.execute("SELECT pg_advisory_xact_lock(1935098, 11)");
+        while (true) {
+            long number=db.queryForObject("SELECT nextval('product_code_sequence')",Long.class);
+            String code="PRD-"+String.format(Locale.ROOT,"%08d",number);
+            if(!Boolean.TRUE.equals(db.queryForObject("SELECT EXISTS(SELECT 1 FROM products WHERE code=?)",Boolean.class,code)))return code;
+        }
+    }
     @Override public long insert(Spec spec,Map<String,Object> values) { spec=canonical(spec);columns(spec,values.keySet());return db.queryForObject("INSERT INTO "+spec.table()+"("+String.join(",",values.keySet())+") VALUES ("+String.join(",",Collections.nCopies(values.size(),"?"))+") RETURNING id",Long.class,values.values().toArray()); }
     @Override public void update(Spec spec,long id,Map<String,Object> values) { spec=canonical(spec);columns(spec,values.keySet());var args=new ArrayList<>(values.values());args.add(id);db.update("UPDATE "+spec.table()+" SET "+String.join(",",values.keySet().stream().map(f->f+"=?").toList())+",updated_at=now() WHERE id=?",args.toArray()); }
     @Override public long lockProductUnit(long id) { return db.queryForObject("SELECT product_unit FROM products WHERE id=? FOR UPDATE",Long.class,id); }

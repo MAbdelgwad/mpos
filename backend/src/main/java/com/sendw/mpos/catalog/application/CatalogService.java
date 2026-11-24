@@ -96,7 +96,13 @@ public class CatalogService {
     }
     @Transactional
     public Map<String,Object> save(String kind,Long id,Map<String,Object> body) {
-        Spec s=access(kind);var values=validate(kind,body);
+        Spec s=access(kind);
+        if(kind.equals("products") && (body.get("code")==null || body.get("code").toString().isBlank())) {
+            body=new LinkedHashMap<>(body);
+            body.put("code",id==null?repository.nextProductCode():find(s.table(),id).get("code"));
+            if(id==null && (body.get("barcode_symbol")==null || body.get("barcode_symbol").toString().isBlank()))body.put("barcode_symbol",1);
+        }
+        var values=validate(kind,body);
         if(id==null) {
             id=repository.insert(s,values);
         } else {

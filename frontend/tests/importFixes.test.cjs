@@ -9,13 +9,13 @@ const source=fs.readFileSync(__dirname+'/../src/components/product/ProductForm.j
 const ast=babel.parseSync(source,{babelrc:false,configFile:false,presets:[require.resolve('@babel/preset-react')]});
 function formFunction(name,context){let node;traverse(ast,{VariableDeclarator(p){if(p.node.id.name===name)node=p.node.init;}});return vm.runInNewContext('('+generate(node).code+')',context);}
 test('Spring product saves without hidden warehouse, supplier or opening stock fields',()=>{
- const unit={value:7,label:'جوال'}, product={name:'بصل',code:'ONION',product_category_id:{value:1},brand_id:{value:2},barcode_symbol:{value:1},product_cost:'0',product_price:'10',product_unit:unit,sale_unit:unit,purchase_unit:unit,order_tax:0,notes:'',isEdit:false,tax_type:{value:1}};
+ const unit={value:7,label:'جوال'}, product={name:'بصل',code:'',product_category_id:{value:1},brand_id:{value:2},barcode_symbol:{value:1},product_cost:'0',product_price:'10',product_unit:unit,sale_unit:unit,purchase_unit:unit,order_tax:0,notes:'',isEdit:false,tax_type:{value:1}};
  let errors;
  const context={window:{MPOS_SPRING:true},productValue:product,isClearDropdown:true,isDropdown:true,getFormattedMessage:x=>x,setErrors:e=>{errors=e;},FormData,multipleFiles:[]};
  assert.equal(formFunction('handleValidation',context)(),true);
  assert.equal(Object.keys(errors).length,0);
  const data=formFunction('prepareFormData',context)(product);
- assert.equal(data.get('name'),'بصل');assert.equal(data.get('product_unit'),'7');
+ assert.equal(data.get('code'),'');assert.equal(data.get('name'),'بصل');assert.equal(data.get('product_unit'),'7');
  assert.equal(data.has('purchase_supplier_id'),false);assert.equal(data.has('purchase_quantity'),false);
  product.name='';assert.equal(formFunction('handleValidation',context)(),false);assert(errors.name);
 });

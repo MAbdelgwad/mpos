@@ -61,6 +61,24 @@ class ApiIntegrationTest {
     long shipment(StockFixture f,String booking)throws Exception{long shipping=importPartner(f.token(),"Shipping "+booking,"shipping_agent"),transport=importPartner(f.token(),"Transport "+booking,"transport_agent");var r=postKey("/api/import-shipments",f.token(),"create-"+booking,jsonImport(shipmentBody(f,shipping,transport,booking)));assertEquals(200,r.statusCode(),r.body());return ((Number)JsonPath.read(r.body(),"$.data.id")).longValue();}
     long firstContainer(long shipment){return db.queryForObject("SELECT min(id) FROM import_containers WHERE shipment_id=?",Long.class,shipment);}
     String importSale(long customer,String mode,long container,long pieces){return jsonImport(Map.of("customer_id",customer,"date","2026-11-24","mode",mode,"containers",java.util.List.of(Map.of("container_id",container,"pieces",pieces,"product_price",10))));}
+    @Test void automaticProductCodesAreUniqueAndPreservedOnEdit() throws Exception {
+        var f=stockFixture();
+        Map<String,Object> body=JsonPath.read(request("GET","/api/products/"+f.product(),f.token(),null).body(),"$.data.attributes");
+        body.remove("code");body.remove("barcode_symbol");
+        String payload=jsonImport(body);
+        var client=HttpClient.newHttpClient();
+        var req=HttpRequest.newBuilder(URI.create("http://localhost:"+port+"/api/products")).header("Authorization","Bearer "+f.token()).header("Content-Type","application/json").POST(HttpRequest.BodyPublishers.ofString(payload)).build();
+        var a=client.sendAsync(req,HttpResponse.BodyHandlers.ofString());var b=client.sendAsync(req,HttpResponse.BodyHandlers.ofString());
+        var first=a.get();var second=b.get();assertEquals(201,first.statusCode(),first.body());assertEquals(201,second.statusCode(),second.body());
+        String code=JsonPath.read(first.body(),"$.data.attributes.code"),other=JsonPath.read(second.body(),"$.data.attributes.code");
+        assertTrue(code.matches("PRD-[0-9]{8,}"));assertNotEquals(code,other);
+        long id=((Number)JsonPath.read(first.body(),"$.data.id")).longValue();
+        body.put("code","");body.put("barcode_symbol",1);body.put("name","Updated automatic product");
+        var updated=request("PUT","/api/products/"+id,f.token(),jsonImport(body));assertEquals(200,updated.statusCode(),updated.body());
+        assertEquals(code,JsonPath.read(updated.body(),"$.data.attributes.code"));
+        assertTrue(((String)JsonPath.read(updated.body(),"$.data.attributes.barcode_image_url")).startsWith("data:image/png;base64,"));
+        assertEquals("STOCK001",db.queryForObject("SELECT code FROM products WHERE id=?",String.class,f.product()));
+    }
     @Test void shipmentNumbersAreGeneratedStableUniqueAndSearchable() throws Exception {
         var f=stockFixture(); long first=shipment(f,"BOOK-FIRST"), second=shipment(f,"BOOK-SECOND");
         String number=JsonPath.read(request("GET","/api/import-shipments/"+first,f.token(),null).body(),"$.data.shipment_number");

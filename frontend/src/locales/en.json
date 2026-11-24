@@ -794,5 +794,6 @@
     "imports.sales": "Shipment sales",
     "imports.partners": "Shipping and transport agents",
     "imports.shippingAgents": "Sea shipping agents",
-    "imports.transportAgents": "Land transport agents"
+    "imports.transportAgents": "Land transport agents",
+    "product.code.automatic": "Generated automatically on save"
 }

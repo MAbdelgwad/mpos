@@ -53,7 +53,7 @@ const ProductForm = ( props ) => {
         code: '',
         product_category_id: '',
         brand_id: '',
-        barcode_symbol: '',
+        barcode_symbol: window.MPOS_SPRING ? {value:'1',label:'Code 128'} : '',
         product_cost: '',
         product_price: '',
         product_unit: '',
@@ -248,7 +248,7 @@ const ProductForm = ( props ) => {
         let isValid = false;
         if ( !productValue[ 'name' ] ) {
             errorss[ 'name' ] = getFormattedMessage( 'globally.input.name.validate.label' );
-        } else if ( !productValue[ 'code' ] ) {
+        } else if ( !window.MPOS_SPRING && !productValue[ 'code' ] ) {
             errorss[ 'code' ] = getFormattedMessage( 'product.input.code.validate.label' );
         } else if ( !productValue[ 'product_category_id' ] ) {
             errorss[ 'product_category_id' ] = getFormattedMessage( 'product.input.product-category.validate.label' );
@@ -398,9 +398,10 @@ const ProductForm = ( props ) => {
                                     <div className='col-md-6 mb-3'>
                                         <label
                                             className='form-label'>{getFormattedMessage( 'product.input.code.label' )}: </label>
-                                        <span className='required' />
+                                        {!window.MPOS_SPRING && <span className='required' />}
                                         <input type='text' name='code' className=' form-control'
-                                            placeholder={placeholderText( 'product.input.code.placeholder.label' )}
+                                            readOnly={Boolean(window.MPOS_SPRING)}
+                                            placeholder={placeholderText(window.MPOS_SPRING ? 'product.code.automatic' : 'product.input.code.placeholder.label')}
                                             onChange={( e ) => onChangeInput( e )}
                                             value={productValue.code} />
                                         <span
@@ -425,7 +426,7 @@ const ProductForm = ( props ) => {
                                         <ReactSelect
                                             title={getFormattedMessage( 'product.input.barcode-symbology.label' )}
                                             placeholder={placeholderText( 'product.input.barcode-symbology.placeholder.label' )}
-                                            defaultValue={selectedBarcode} errors={errors[ 'barcode_symbol' ]}
+                                            defaultValue={selectedBarcode || (window.MPOS_SPRING ? {value:'1',label:'Code 128'} : null)} errors={errors[ 'barcode_symbol' ]}
                                             data={barcodes} onChange={onBarcodeChange}
                                             value={productValue.barcode_symbol} />
                                     </div>
